@@ -20,6 +20,7 @@ import { getQueue } from "../services/offlineQueue";
 import type { AgentResult } from "../core/agent";
 import type { ReunionPoint, FoundPerson } from "../types";
 import { RAMKUND_DEFAULT } from "../services/location";
+import { compressImage } from "../utils/imageUtils";
 
 /** Extract a human-friendly zone label from a center/zone name — hides exact desk identity */
 function maskZone(centerOrZone: string): string {
@@ -290,7 +291,7 @@ export default function PublicApp() {
   const [showCctv, setShowCctv] = useState(false);
   const [showChokepoints, setShowChokepoints] = useState(false);
   const [nearbyVolunteers, setNearbyVolunteers] = useState<VolunteerRecord[]>([]);
-  const [nearbyPolice, setNearbyPolice] = useState<{ name: string; distKm: number; walkMin: number }[]>([]);
+  const [nearbyPolice, setNearbyPolice] = useState<{ id: string; name: string; distKm: number; walkMin: number; lat: number; lng: number }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const cctv = cctvData as CctvPoint[];
@@ -323,32 +324,33 @@ export default function PublicApp() {
     return "";
   }
 
+  // ── Apply a location (GPS or dummy picker) ────────────────────────────────
+  function applyLocation(loc: UserLocation) {
+    setUserLocation(loc);
+    setNearbyDesks(getNearestCenters(loc, 5));
+    const sortedPolice = regBackend.getPoliceStations()
+      .map((ps) => {
+        const d = haversineKm(loc, ps.location);
+        return { id: ps.id, name: ps.name, lat: ps.location.lat, lng: ps.location.lng, distKm: Math.round(d * 100) / 100, walkMin: walkingMinutes(d) };
+      })
+      .sort((a, b) => a.distKm - b.distKm)
+      .slice(0, 2);
+    setNearbyPolice(sortedPolice);
+    const vols = getActiveVolunteers()
+      .map((v) => ({ ...v, _dist: haversineKm(loc, { lat: v.lat, lng: v.lng }) }))
+      .sort((a, b) => a._dist - b._dist)
+      .slice(0, 4);
+    setNearbyVolunteers(vols);
+  }
+
   // ── Fetch location on mount + build derived data ──────────────────────────
   useEffect(() => {
     setLocationLoading(true);
     getUserLocation().then((loc) => {
-      setUserLocation(loc);
-      setNearbyDesks(getNearestCenters(loc, 5));
+      applyLocation(loc);
       setLocationLoading(false);
-
-      // Nearest police stations
-      const policeStations = regBackend.getPoliceStations();
-      const sortedPolice = policeStations
-        .map((ps) => {
-          const d = haversineKm(loc, ps.location);
-          return { name: ps.name, distKm: Math.round(d * 100) / 100, walkMin: walkingMinutes(d) };
-        })
-        .sort((a, b) => a.distKm - b.distKm)
-        .slice(0, 2);
-      setNearbyPolice(sortedPolice);
-
-      // Active volunteers sorted by distance
-      const vols = getActiveVolunteers()
-        .map((v) => ({ ...v, _dist: haversineKm(loc, { lat: v.lat, lng: v.lng }) }))
-        .sort((a, b) => a._dist - b._dist)
-        .slice(0, 4);
-      setNearbyVolunteers(vols);
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Build map markers ─────────────────────────────────────────────────────
@@ -376,12 +378,7 @@ export default function PublicApp() {
     const file = e.target.files?.[0];
     if (!file) return;
     setPhotoPreview(URL.createObjectURL(file));
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const data = (ev.target?.result as string).split(",")[1]; // strip data:...;base64,
-      setPhotoBase64(data);
-    };
-    reader.readAsDataURL(file);
+    compressImage(file).then(setPhotoBase64);
   }
 
   // ── SOS handler ────────────────────────────────────────────────────────────
@@ -513,27 +510,28 @@ export default function PublicApp() {
           background: "#faf9f7", borderBottom: "1px solid #e7e5e4",
           scrollbarWidth: "none",
         }}>
-          <span style={{ fontSize: 10, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 10, padding: "3px 8px", whiteSpace: "nowrap", fontWeight: 600, flexShrink: 0 }}>
-            🔵 Matching locally
-          </span>
           <button
             onClick={() => navigate("/registry")}
             style={{ fontSize: 11, color: "#15803d", padding: "4px 10px", border: "1px solid #86efac", borderRadius: 6, background: "#f0fdf4", whiteSpace: "nowrap", flexShrink: 0 }}
           >
-            📋 Registry
+            📋 {t("missingPersonsList", lang)}
           </button>
-          <button
-            onClick={() => navigate("/volunteer")}
-            style={{ fontSize: 11, color: "#78716c", padding: "4px 10px", border: "1px solid #e7e5e4", borderRadius: 6, background: "white", whiteSpace: "nowrap", flexShrink: 0 }}
-          >
-            🙋 {t("volunteer", lang)}
-          </button>
-          <button
-            onClick={() => navigate("/help-desk")}
-            style={{ fontSize: 11, color: "#1d4ed8", padding: "4px 10px", border: "1px solid #bfdbfe", borderRadius: 6, background: "#eff6ff", whiteSpace: "nowrap", flexShrink: 0 }}
-          >
-            🏥 {t("helpDesk", lang)}
-          </button>
+          {lang === "en" && (
+            <button
+              onClick={() => navigate("/volunteer")}
+              style={{ fontSize: 11, color: "#78716c", padding: "4px 10px", border: "1px solid #e7e5e4", borderRadius: 6, background: "white", whiteSpace: "nowrap", flexShrink: 0 }}
+            >
+              🙋 {t("volunteer", lang)}
+            </button>
+          )}
+          {lang === "en" && (
+            <button
+              onClick={() => navigate("/help-desk")}
+              style={{ fontSize: 11, color: "#1d4ed8", padding: "4px 10px", border: "1px solid #bfdbfe", borderRadius: 6, background: "#eff6ff", whiteSpace: "nowrap", flexShrink: 0 }}
+            >
+              🏥 {t("helpDesk", lang)}
+            </button>
+          )}
         </div>
 
         {/* Map — shows route when a center is selected */}
@@ -552,7 +550,7 @@ export default function PublicApp() {
           />
           {/* Layer toggles */}
           <div style={{
-            position: "absolute", bottom: 8, right: 8, zIndex: 999,
+            position: "absolute", bottom: 8, left: 8, zIndex: 999,
             display: "flex", gap: 4, flexDirection: "column",
           }}>
             <button
@@ -609,6 +607,44 @@ export default function PublicApp() {
               <div className="stat-label">{t("support", lang)}</div>
             </div>
           </div>
+
+          {/* Demo location picker */}
+          {(() => {
+            const DEMO_LOCS: { label: string; lat: number; lng: number }[] = [
+              { label: "Ramkund", lat: 20.0039, lng: 73.7894 },
+              { label: "Panchavati", lat: 20.0022, lng: 73.7883 },
+              { label: "Tapovan", lat: 20.0156, lng: 73.7918 },
+              { label: "Bus Stand", lat: 20.0059, lng: 73.7898 },
+              { label: "Railway Stn", lat: 19.9975, lng: 73.7898 },
+            ];
+            return (
+              <div style={{ marginTop: 10, marginBottom: 4 }}>
+                <div style={{ fontSize: 10, color: "#a8a29e", marginBottom: 5, textAlign: "center" }}>
+                  📍 {userLocation ? `${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)} (${userLocation.source})` : "Locating…"}
+                </div>
+                <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+                  {DEMO_LOCS.map((loc) => {
+                    const active = userLocation && Math.abs(userLocation.lat - loc.lat) < 0.0001 && Math.abs(userLocation.lng - loc.lng) < 0.0001;
+                    return (
+                      <button
+                        key={loc.label}
+                        onClick={() => applyLocation({ lat: loc.lat, lng: loc.lng, accuracy: 0, source: "default" })}
+                        style={{
+                          flexShrink: 0, fontSize: 11, padding: "3px 10px", borderRadius: 12,
+                          background: active ? "#f97316" : "white",
+                          color: active ? "white" : "#57534e",
+                          border: `1px solid ${active ? "#f97316" : "#d4d0cb"}`,
+                          cursor: "pointer", whiteSpace: "nowrap",
+                        }}
+                      >
+                        {loc.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* SOS Button */}
           <div
@@ -716,28 +752,48 @@ export default function PublicApp() {
           {/* Safety Quick-Access — Police + CCTV */}
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             <div className="card" style={{ flex: 1, margin: 0, borderColor: "#1d4ed8" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", marginBottom: 6 }}>👮 Nearest Police</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", marginBottom: 6 }}>👮 {t("nearestPolice", lang)}</div>
               {nearbyPolice.length > 0 ? (
-                nearbyPolice.slice(0, 1).map((ps) => (
-                  <div key={ps.name}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#1e293b" }}>{ps.name}</div>
-                    <div style={{ fontSize: 11, color: "#64748b" }}>🚶 {ps.walkMin} min · {ps.distKm} km</div>
-                    <a href="tel:100" style={{ fontSize: 12, color: "#1d4ed8", fontWeight: 700 }}>📞 Dial 100</a>
-                  </div>
-                ))
+                nearbyPolice.slice(0, 1).map((ps) => {
+                  const isRouted = routeTo?.lat === ps.lat && routeTo?.lng === ps.lng;
+                  return (
+                    <div key={ps.id}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#1e293b" }}>{ps.name}</div>
+                      <div style={{ fontSize: 11, color: "#64748b" }}>🚶 {ps.walkMin} {t("min", lang)} · {ps.distKm} {t("km", lang)}</div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center" }}>
+                        <a href="tel:100" style={{ fontSize: 12, color: "#1d4ed8", fontWeight: 700 }}>📞 100</a>
+                        <button
+                          onClick={() => {
+                            setRouteTo(isRouted ? null : { lat: ps.lat, lng: ps.lng, name: ps.name });
+                            setSelectedDeskId(isRouted ? null : ps.id);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          style={{
+                            fontSize: 11, padding: "2px 8px", borderRadius: 6,
+                            background: isRouted ? "#1d4ed8" : "white",
+                            color: isRouted ? "white" : "#1d4ed8",
+                            border: "1px solid #1d4ed8", cursor: "pointer",
+                          }}
+                        >
+                          {isRouted ? "📍" : `🗺 ${t("getDirections", lang)}`}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
               ) : (
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>Locating…</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>{t("locating", lang)}</div>
               )}
             </div>
             <div className="card" style={{ flex: 1, margin: 0, borderColor: "#7c3aed" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", marginBottom: 6 }}>📹 CCTV Coverage</div>
-              <div style={{ fontSize: 12, color: "#1e293b" }}>{cctv.length} cameras</div>
-              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>Active monitoring</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", marginBottom: 6 }}>📹 {t("cctvCoverage", lang)}</div>
+              <div style={{ fontSize: 12, color: "#1e293b" }}>{cctv.length} {t("cameras", lang)}</div>
+              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>{t("activeMonitoring", lang)}</div>
               <button
                 onClick={() => { setShowCctv(v => !v); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                 style={{ fontSize: 11, color: "#7c3aed", background: "none", border: "1px solid #7c3aed", borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}
               >
-                {showCctv ? "Hide on map" : "Show on map →"}
+                {showCctv ? t("hideOnMap", lang) : t("showOnMap", lang)}
               </button>
             </div>
           </div>
@@ -745,7 +801,7 @@ export default function PublicApp() {
           {/* Nearest Volunteers */}
           {nearbyVolunteers.length > 0 && (
             <div className="card" style={{ marginTop: 12 }}>
-              <div className="card-title">🙋 Nearest Volunteers ({nearbyVolunteers.length} active)</div>
+              <div className="card-title">🙋 {t("nearestVolunteers", lang)} ({nearbyVolunteers.length} {t("activeStatus", lang).toLowerCase()})</div>
               {nearbyVolunteers.slice(0, 3).map((v) => {
                 const dist = userLocation ? haversineKm(userLocation, { lat: v.lat, lng: v.lng }) : 0;
                 const isRouted = routeTo?.lat === v.lat && routeTo?.lng === v.lng;
@@ -757,12 +813,12 @@ export default function PublicApp() {
                     </div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>🟢 Active</div>
-                        <div style={{ fontSize: 11, color: "#78716c" }}>🚶 {walkingMinutes(dist)} min</div>
+                        <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>🟢 {t("activeStatus", lang)}</div>
+                        <div style={{ fontSize: 11, color: "#78716c" }}>🚶 {walkingMinutes(dist)} {t("min", lang)}</div>
                       </div>
                       <button
                         onClick={() => {
-                          setRouteTo({ lat: v.lat, lng: v.lng, name: `${v.name} (Volunteer)` });
+                          setRouteTo({ lat: v.lat, lng: v.lng, name: `${v.name} (${t("volunteerLabel", lang)})` });
                           setSelectedDeskId(v.id);
                           window.scrollTo({ top: 0, behavior: "smooth" });
                         }}
@@ -787,12 +843,12 @@ export default function PublicApp() {
             <div className="card-title">{t("nearestCenters", lang)}</div>
             {routeTo && (
               <div style={{ fontSize: 12, color: "#2563eb", marginBottom: 8 }}>
-                🗺 Showing route to <strong>{routeTo.name}</strong> — scroll up to see map
+                🗺 {t("showingRouteTo", lang)} <strong>{routeTo.name}</strong> — {t("scrollUpForMap", lang)}
                 <button
                   onClick={() => { setRouteTo(null); setSelectedDeskId(null); }}
                   style={{ marginLeft: 8, fontSize: 11, color: "#dc2626", background: "none", border: "none", cursor: "pointer" }}
                 >
-                  ✕ Clear
+                  ✕ {t("clear", lang)}
                 </button>
               </div>
             )}
@@ -1048,9 +1104,7 @@ export default function PublicApp() {
                   onChange={e => setDpdpConsent(e.target.checked)}
                   style={{ marginTop: 2, flexShrink: 0 }}
                 />
-                <span>
-                  I consent to sharing this information with Kumbh Mela authorities and help centers to locate the missing person. Data is retained for 72 hours per DPDP Act 2023 guidelines.
-                </span>
+                <span>{t("dpdpConsent", lang)}</span>
               </label>
             </div>
 
@@ -1243,42 +1297,42 @@ export default function PublicApp() {
           {/* Registration details card */}
           {registerOutput && (
             <div className="card" style={{ marginTop: 12, background: "#f0fdf4", borderColor: "#86efac" }}>
-              <div className="card-title" style={{ color: "#15803d" }}>📋 Report Details</div>
+              <div className="card-title" style={{ color: "#15803d" }}>📋 {t("reportDetails", lang)}</div>
               {typeof registerOutput.referenceId === "string" && (
                 <div style={{ fontSize: 13, marginBottom: 6 }}>
-                  <strong>Reference ID:</strong> <span style={{ fontFamily: "monospace", color: "#1d4ed8" }}>{registerOutput.referenceId}</span>
+                  <strong>{t("referenceId", lang)}:</strong> <span style={{ fontFamily: "monospace", color: "#1d4ed8" }}>{registerOutput.referenceId}</span>
                 </div>
               )}
 
               {/* 🔐 Handover PIN — shown prominently */}
               {typeof registerOutput.verificationCode === "string" && (
                 <div style={{ background: "#fffbeb", border: "2px solid #f59e0b", borderRadius: 10, padding: "12px 14px", margin: "10px 0" }}>
-                  <div style={{ fontSize: 12, color: "#92400e", fontWeight: 700, marginBottom: 4 }}>🔐 Your Handover Code</div>
+                  <div style={{ fontSize: 12, color: "#92400e", fontWeight: 700, marginBottom: 4 }}>🔐 {t("handoverCode", lang)}</div>
                   <div style={{ fontFamily: "monospace", fontSize: 36, fontWeight: 900, letterSpacing: 14, color: "#1e293b", textAlign: "center" }}>
                     {registerOutput.verificationCode}
                   </div>
                   <div style={{ fontSize: 11, color: "#92400e", marginTop: 6, textAlign: "center", lineHeight: 1.4 }}>
-                    Quote this 4-digit code at any help desk before anyone is released. Keep it private.
+                    {t("handoverCodeHint", lang)}
                   </div>
                 </div>
               )}
 
               {Array.isArray(registerOutput.alertedCenters) && (registerOutput.alertedCenters as string[]).length > 0 && (
                 <div style={{ fontSize: 13, marginBottom: 6 }}>
-                  <strong>Centers alerted:</strong>{" "}
+                  <strong>{t("centersAlerted", lang)}:</strong>{" "}
                   {(registerOutput.alertedCenters as string[]).join(", ")}
                 </div>
               )}
               {typeof registerOutput.volunteersAlerted === "number" && (
                 <div style={{ fontSize: 13, marginBottom: 6 }}>
-                  <strong>🚨 AMBER Alert sent to:</strong>{" "}
+                  <strong>🚨 AMBER Alert:</strong>{" "}
                   <span style={{ color: registerOutput.volunteersAlerted > 0 ? "#dc2626" : "#78716c" }}>
-                    {registerOutput.volunteersAlerted} volunteer{registerOutput.volunteersAlerted !== 1 ? "s" : ""} in the area
+                    {registerOutput.volunteersAlerted} {t("volunteerLabel", lang).toLowerCase()}{registerOutput.volunteersAlerted !== 1 ? "s" : ""}
                   </span>
                 </div>
               )}
               <div style={{ fontSize: 12, color: "#15803d", marginTop: 8, fontStyle: "italic" }}>
-                ✅ All nearby help centers and volunteers have been notified
+                ✅ {t("allCentersNotified", lang)}
               </div>
             </div>
           )}
@@ -1300,7 +1354,7 @@ export default function PublicApp() {
                 <p style={{ fontSize: 14, color: "#57534e", marginTop: 4 }}>{reunionPoint.landmark_mr}</p>
               )}
               <p style={{ fontSize: 12, color: "#a8a29e", marginTop: 8 }}>
-                Volunteer: {reunionPoint.volunteerAssigned}
+                {t("volunteerLabel", lang)}: {reunionPoint.volunteerAssigned}
               </p>
             </div>
           )}

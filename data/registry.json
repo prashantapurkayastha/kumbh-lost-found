@@ -1,0 +1,774 @@
+{
+  "foundPersons": [
+    {
+      "id": "FP-001",
+      "ageRange": "7-9",
+      "gender": "male",
+      "name": "Unknown",
+      "clothing": "blue kurta with white embroidery, grey shorts, brown sandals",
+      "clothing_features": [
+        "blue",
+        "kurta",
+        "grey",
+        "shorts"
+      ],
+      "foundZone": "Ramkund",
+      "lastSeenLocation": "Ramkund Ghat",
+      "foundAt": "2027-07-28T09:15:00Z",
+      "centerId": "CENTER-RAMKUND",
+      "centerName": "Ramkund Kho-Ya-Paya Kendra",
+      "languageSpoken": "Marathi",
+      "condition": "calm",
+      "physicalDescription": "Short hair, light complexion, small birthmark on left cheek",
+      "photoMatchConfidence": 0.82,
+      "status": "waiting",
+      "is_potential_duplicate": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z"
+    },
+    {
+      "id": "FP-002",
+      "ageRange": "65-75",
+      "gender": "female",
+      "name": "Says her name is Savitribai",
+      "clothing": "orange saree with red border, white blouse",
+      "clothing_features": [
+        "orange",
+        "saree",
+        "red border",
+        "white blouse"
+      ],
+      "foundZone": "Panchavati",
+      "lastSeenLocation": "Panchavati Circle",
+      "foundAt": "2027-07-28T07:45:00Z",
+      "centerId": "CENTER-PANCHAVATI",
+      "centerName": "Panchavati Center",
+      "languageSpoken": "Marathi",
+      "condition": "distressed",
+      "physicalDescription": "Grey hair tied in bun, wearing glasses, carrying a green cloth bag with 'Nashik Kumbh' printed on it",
+      "photoMatchConfidence": 0.75,
+      "status": "waiting",
+      "is_potential_duplicate": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z"
+    },
+    {
+      "id": "FP-003",
+      "ageRange": "5-7",
+      "gender": "female",
+      "name": "Says her name is Pooja",
+      "clothing": "pink frock with yellow flowers, white socks, pink ribbons in hair",
+      "clothing_features": [
+        "pink",
+        "frock",
+        "yellow",
+        "flowers",
+        "pink ribbons"
+      ],
+      "foundZone": "Ramkund",
+      "lastSeenLocation": "Panchavati Circle",
+      "foundAt": "2027-07-28T10:02:00Z",
+      "centerId": "CENTER-RAMKUND",
+      "centerName": "Ramkund Kho-Ya-Paya Kendra",
+      "languageSpoken": "Gujarati",
+      "condition": "distressed",
+      "physicalDescription": "Pigtails with pink ribbons, small yellow backpack with cartoon character",
+      "photoMatchConfidence": 0.9,
+      "status": "waiting",
+      "is_potential_duplicate": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z"
+    },
+    {
+      "id": "FP-004",
+      "ageRange": "40-50",
+      "gender": "male",
+      "name": "Says his name is Ramesh",
+      "clothing": "white dhoti, saffron uttariya (shawl), no shirt",
+      "clothing_features": [
+        "white",
+        "dhoti",
+        "saffron",
+        "shawl"
+      ],
+      "foundZone": "Sadhugram",
+      "lastSeenLocation": "Sadhugram Gate 1",
+      "foundAt": "2027-07-28T08:30:00Z",
+      "centerId": "CENTER-SADHUGRAM",
+      "centerName": "Sadhugram Lost Found",
+      "languageSpoken": "Bengali",
+      "condition": "calm",
+      "physicalDescription": "Tall, bearded, rudraksha mala around neck, carrying a kamandal (water vessel)",
+      "photoMatchConfidence": 0.68,
+      "status": "waiting",
+      "is_potential_duplicate": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z"
+    },
+    {
+      "id": "FP-005",
+      "ageRange": "10-13",
+      "gender": "male",
+      "name": "Unknown",
+      "clothing": "blue and white striped school-uniform style shirt, dark blue trousers",
+      "clothing_features": [
+        "blue",
+        "white",
+        "striped",
+        "shirt",
+        "dark trousers"
+      ],
+      "foundZone": "Panchavati",
+      "lastSeenLocation": "Gauri Patangan",
+      "foundAt": "2027-07-28T08:55:00Z",
+      "centerId": "CENTER-PANCHAVATI",
+      "centerName": "Panchavati Center",
+      "languageSpoken": "Telugu",
+      "condition": "calm",
+      "physicalDescription": "Wearing spectacles, carries a small blue mobile phone (locked)",
+      "photoMatchConfidence": 0.77,
+      "status": "waiting",
+      "is_potential_duplicate": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z"
+    },
+    {
+      "id": "FP-006",
+      "ageRange": "70-80",
+      "gender": "male",
+      "name": "Unknown, does not speak",
+      "clothing": "yellow kurta, white pyjama, black cap",
+      "clothing_features": [
+        "yellow",
+        "kurta",
+        "white",
+        "pyjama",
+        "black cap"
+      ],
+      "foundZone": "Trimbakeshwar",
+      "lastSeenLocation": "Trimbakeshwar Approach",
+      "foundAt": "2027-07-28T06:20:00Z",
+      "centerId": "CENTER-TRIMBAK",
+      "centerName": "Trimbakeshwar Kho-Ya-Paya Kendra",
+      "languageSpoken": "Punjabi",
+      "condition": "non-verbal",
+      "physicalDescription": "Uses walking stick, white beard, appears to have hearing difficulty",
+      "photoMatchConfidence": 0.6,
+      "status": "waiting",
+      "is_potential_duplicate": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z"
+    },
+    {
+      "id": "FP-007",
+      "ageRange": "25-35",
+      "gender": "female",
+      "name": "Priya",
+      "clothing": "red kurta, black leggings, dupatta with gold border",
+      "clothing_features": [
+        "red",
+        "kurta",
+        "black leggings",
+        "gold dupatta"
+      ],
+      "foundZone": "Ramkund",
+      "lastSeenLocation": "Dasak Ghat",
+      "foundAt": "2027-07-28T11:15:00Z",
+      "centerId": "CENTER-RAMKUND",
+      "centerName": "Ramkund Kho-Ya-Paya Kendra",
+      "languageSpoken": "Tamil",
+      "condition": "calm",
+      "physicalDescription": "Wearing gold earrings and a nose ring, has a yellow tilak on forehead, carrying a cloth bag",
+      "photoMatchConfidence": 0.71,
+      "status": "waiting",
+      "is_potential_duplicate": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z"
+    },
+    {
+      "id": "FP-008",
+      "ageRange": "3-5",
+      "gender": "female",
+      "name": "Says her name is Rani",
+      "clothing": "green and gold lehenga choli, glass bangles",
+      "clothing_features": [
+        "green",
+        "gold",
+        "lehenga",
+        "choli",
+        "bangles"
+      ],
+      "foundZone": "Ramkund",
+      "lastSeenLocation": "Ramkund Ghat",
+      "foundAt": "2027-07-28T11:40:00Z",
+      "centerId": "CENTER-SADHUGRAM",
+      "centerName": "Sadhugram Lost Found",
+      "languageSpoken": "Hindi",
+      "condition": "distressed",
+      "physicalDescription": "Very young, crying, mehndi (henna) on both hands, small gold anklets",
+      "photoMatchConfidence": 0.88,
+      "status": "waiting",
+      "is_potential_duplicate": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z"
+    },
+    {
+      "id": "FP-108",
+      "ageRange": "40-50",
+      "gender": "unknown",
+      "name": "Unknown",
+      "clothing": "tt",
+      "clothing_features": [
+        "tt"
+      ],
+      "foundZone": "Ramkund area",
+      "lastSeenLocation": "Ramkund area",
+      "foundAt": "now",
+      "centerId": "CENTER-RAMKUND",
+      "centerName": "Ramkund Kho-Ya-Paya Kendra",
+      "languageSpoken": "English",
+      "condition": "calm",
+      "physicalDescription": "",
+      "photoMatchConfidence": 0,
+      "status": "waiting",
+      "is_potential_duplicate": false,
+      "expiresAt": "2026-06-30T11:40:06.611Z",
+      "disposition": "active",
+      "familyExpected": true,
+      "isMinorUnaccompanied": false
+    }
+  ],
+  "missingReports": [
+    {
+      "id": "LP-24780",
+      "reportedBy": "Meena Shinde",
+      "contactNumber": "+91-9876501234",
+      "reportingCenter": "Ramkund Kho-Ya-Paya Kendra",
+      "missingPerson": {
+        "name": "Arjun Shinde",
+        "ageRange": "7-9",
+        "gender": "male",
+        "clothing": "blue shirt, grey shorts",
+        "lastSeenLocation": "Ramkund Ghat",
+        "lastSeenTime": "2027-07-28T09:00:00Z",
+        "languageSpoken": "Marathi",
+        "additionalDetails": "Has a small mole on left cheek, was wearing a small backpack"
+      },
+      "registeredAt": "2027-07-28T09:22:00Z",
+      "status": "active",
+      "matchedFoundPersonId": null,
+      "is_duplicate_report": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z",
+      "verificationCode": "5268"
+    },
+    {
+      "id": "LP-24795",
+      "reportedBy": "Dilip Patel",
+      "contactNumber": "+91-9876512345",
+      "reportingCenter": "Panchavati Center",
+      "missingPerson": {
+        "name": "Kavya Patel",
+        "ageRange": "5-7",
+        "gender": "female",
+        "clothing": "pink frock, has pink ribbons in hair, carries yellow backpack",
+        "lastSeenLocation": "Panchavati Circle",
+        "lastSeenTime": "2027-07-28T09:50:00Z",
+        "languageSpoken": "Gujarati",
+        "additionalDetails": "She speaks some Hindi as well. Was holding a balloon before getting separated."
+      },
+      "registeredAt": "2027-07-28T10:10:00Z",
+      "status": "active",
+      "matchedFoundPersonId": null,
+      "is_duplicate_report": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z",
+      "verificationCode": "7130"
+    },
+    {
+      "id": "LP-24801",
+      "reportedBy": "Avinash Ghosh",
+      "contactNumber": "+91-9876523456",
+      "reportingCenter": "Bharat Bharati Control Room",
+      "missingPerson": {
+        "name": "Suresh Ghosh",
+        "ageRange": "40-50",
+        "gender": "male",
+        "clothing": "white dhoti, saffron cloth around shoulders",
+        "lastSeenLocation": "Sadhugram Gate 2",
+        "lastSeenTime": "2027-07-28T08:10:00Z",
+        "languageSpoken": "Bengali",
+        "additionalDetails": "He is a sadhu, carries a water vessel, has a beard and rudraksha mala. Does not have a phone."
+      },
+      "registeredAt": "2027-07-28T08:55:00Z",
+      "status": "active",
+      "matchedFoundPersonId": null,
+      "is_duplicate_report": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z",
+      "verificationCode": "8026"
+    },
+    {
+      "_comment": "DUPLICATE DEMO CASE: Same person (Suresh Ghosh / FP-004) reported at a second center — the cross-center gap the dataset highlights (8% of real cases are duplicate reports)",
+      "id": "LP-24802",
+      "reportedBy": "Avinash Ghosh",
+      "contactNumber": "+91-9876523456",
+      "reportingCenter": "Trimbakeshwar Kho-Ya-Paya Kendra",
+      "missingPerson": {
+        "name": "Suresh Ghosh",
+        "ageRange": "40-50",
+        "gender": "male",
+        "clothing": "white dhoti, saffron shawl",
+        "lastSeenLocation": "Sadhugram Gate 1",
+        "lastSeenTime": "2027-07-28T08:10:00Z",
+        "languageSpoken": "Bengali",
+        "additionalDetails": "Tall sadhu with rudraksha mala and kamandal. Filed at Bharat Bharati as LP-24801 as well."
+      },
+      "registeredAt": "2027-07-28T09:45:00Z",
+      "status": "active",
+      "matchedFoundPersonId": null,
+      "is_duplicate_report": true,
+      "duplicate_of": "LP-24801",
+      "expiresAt": "2026-06-30T11:04:33.138Z",
+      "verificationCode": "5397"
+    },
+    {
+      "_comment": "DUPLICATE DEMO CASE 2: Elderly woman Savitribai reported at two different centers simultaneously",
+      "id": "LP-24810",
+      "reportedBy": "Santosh Kulkarni",
+      "contactNumber": "+91-9823456789",
+      "reportingCenter": "Adgaon Kho-Ya-Paya",
+      "missingPerson": {
+        "name": "Savitribai Kulkarni",
+        "ageRange": "65-75",
+        "gender": "female",
+        "clothing": "orange saree, white blouse",
+        "lastSeenLocation": "Panchavati Circle",
+        "lastSeenTime": "2027-07-28T07:30:00Z",
+        "languageSpoken": "Marathi",
+        "additionalDetails": "Has glasses, grey hair in bun. Already reported at Panchavati Center as LP-24811."
+      },
+      "registeredAt": "2027-07-28T08:20:00Z",
+      "status": "active",
+      "matchedFoundPersonId": null,
+      "is_duplicate_report": true,
+      "duplicate_of": "LP-24811",
+      "expiresAt": "2026-06-30T11:04:33.138Z",
+      "verificationCode": "9567"
+    },
+    {
+      "id": "LP-24811",
+      "reportedBy": "Santosh Kulkarni",
+      "contactNumber": "+91-9823456789",
+      "reportingCenter": "Panchavati Center",
+      "missingPerson": {
+        "name": "Savitribai Kulkarni",
+        "ageRange": "65-75",
+        "gender": "female",
+        "clothing": "orange saree with red border, white blouse",
+        "lastSeenLocation": "Panchavati Circle",
+        "lastSeenTime": "2027-07-28T07:30:00Z",
+        "languageSpoken": "Marathi",
+        "additionalDetails": "Wearing glasses, grey hair tied in bun, carrying a green Nashik Kumbh bag."
+      },
+      "registeredAt": "2027-07-28T07:55:00Z",
+      "status": "active",
+      "matchedFoundPersonId": "FP-002",
+      "is_duplicate_report": false,
+      "expiresAt": "2026-06-30T11:04:33.138Z",
+      "verificationCode": "5176"
+    }
+  ],
+  "helpCenters": [
+    {
+      "id": "CENTER-RAMKUND",
+      "name": "Ramkund Kho-Ya-Paya Kendra",
+      "zone": "Ramkund",
+      "location": {
+        "lat": 20.0039,
+        "lng": 73.7894
+      },
+      "contactNumber": "+91-253-2570001",
+      "openHours": "04:00-22:00",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English"
+      ],
+      "capacity": 5,
+      "currentLoad": 3
+    },
+    {
+      "id": "CENTER-PANCHAVATI",
+      "name": "Panchavati Center",
+      "zone": "Panchavati",
+      "location": {
+        "lat": 20.0022,
+        "lng": 73.7883
+      },
+      "contactNumber": "+91-253-2570003",
+      "openHours": "05:00-21:00",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Gujarati",
+        "Bengali"
+      ],
+      "capacity": 4,
+      "currentLoad": 2
+    },
+    {
+      "id": "CENTER-TRIMBAK",
+      "name": "Trimbakeshwar Kho-Ya-Paya Kendra",
+      "zone": "Trimbakeshwar",
+      "location": {
+        "lat": 19.9333,
+        "lng": 73.5284
+      },
+      "contactNumber": "+91-2594-233001",
+      "openHours": "04:00-22:00",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Telugu",
+        "Maithili"
+      ],
+      "capacity": 5,
+      "currentLoad": 4
+    },
+    {
+      "id": "CENTER-NASHIKROAD",
+      "name": "Nashik Road Center",
+      "zone": "Nashik Road",
+      "location": {
+        "lat": 19.9528,
+        "lng": 73.8397
+      },
+      "contactNumber": "+91-253-2570004",
+      "openHours": "05:00-22:00",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Gujarati",
+        "Tamil"
+      ],
+      "capacity": 4,
+      "currentLoad": 1
+    },
+    {
+      "id": "CENTER-BHARATBHARATI",
+      "name": "Bharat Bharati Control Room",
+      "zone": "Central",
+      "location": {
+        "lat": 20.0056,
+        "lng": 73.7838
+      },
+      "contactNumber": "+91-253-2570005",
+      "openHours": "00:00-24:00",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English",
+        "Bengali",
+        "Gujarati",
+        "Telugu",
+        "Tamil",
+        "Kannada",
+        "Bhojpuri",
+        "Maithili"
+      ],
+      "capacity": 10,
+      "currentLoad": 5
+    },
+    {
+      "id": "CENTER-CENTRAL",
+      "name": "Central Control Room",
+      "zone": "Central",
+      "location": {
+        "lat": 20.005,
+        "lng": 73.783
+      },
+      "contactNumber": "+91-253-2570000",
+      "openHours": "00:00-24:00",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English"
+      ],
+      "capacity": 10,
+      "currentLoad": 6
+    },
+    {
+      "id": "CENTER-POLICE",
+      "name": "Police Main Control Room",
+      "zone": "Central",
+      "location": {
+        "lat": 20.0056,
+        "lng": 73.7798
+      },
+      "contactNumber": "+91-253-2570100",
+      "openHours": "00:00-24:00",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English"
+      ],
+      "capacity": 8,
+      "currentLoad": 4
+    },
+    {
+      "id": "CENTER-ADGAON",
+      "name": "Adgaon Kho-Ya-Paya",
+      "zone": "Adgaon",
+      "location": {
+        "lat": 20.0155,
+        "lng": 73.8269
+      },
+      "contactNumber": "+91-253-2570006",
+      "openHours": "05:00-21:00",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Punjabi"
+      ],
+      "capacity": 3,
+      "currentLoad": 1
+    },
+    {
+      "id": "CENTER-SADHUGRAM",
+      "name": "Sadhugram Lost Found",
+      "zone": "Sadhugram",
+      "location": {
+        "lat": 20.0025,
+        "lng": 73.792
+      },
+      "contactNumber": "+91-253-2570007",
+      "openHours": "04:00-22:00",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Bhojpuri",
+        "Bengali"
+      ],
+      "capacity": 4,
+      "currentLoad": 2
+    },
+    {
+      "id": "CENTER-RAJURBAHULA",
+      "name": "Rajur Bahula Center",
+      "zone": "Rajur Bahula",
+      "location": {
+        "lat": 19.946,
+        "lng": 73.673
+      },
+      "contactNumber": "+91-253-2570008",
+      "openHours": "05:00-20:00",
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Gujarati"
+      ],
+      "capacity": 3,
+      "currentLoad": 0
+    }
+  ],
+  "policeStations": [
+    {
+      "id": "PS-ADGAON",
+      "name": "Adgaon Police Station",
+      "location": {
+        "lat": 20.015486,
+        "lng": 73.826945
+      }
+    },
+    {
+      "id": "PS-AMBADPOLIC",
+      "name": "AmbadPolice Station",
+      "location": {
+        "lat": 19.96586,
+        "lng": 73.763443
+      }
+    },
+    {
+      "id": "PS-BHADRAKALI",
+      "name": "Bhadrakali Police Station",
+      "location": {
+        "lat": 19.997799,
+        "lng": 73.789208
+      }
+    },
+    {
+      "id": "PS-DEVLALI",
+      "name": "Devlali camp Police Station",
+      "location": {
+        "lat": 19.905098,
+        "lng": 73.826855
+      }
+    },
+    {
+      "id": "PS-GANGAPUR",
+      "name": "Gangapur Police Station",
+      "location": {
+        "lat": 20.014267,
+        "lng": 73.75007
+      }
+    },
+    {
+      "id": "PS-INDIRANAGA",
+      "name": "Indiranagar Police Station",
+      "location": {
+        "lat": 19.974576,
+        "lng": 73.778583
+      }
+    },
+    {
+      "id": "PS-MHASRUL",
+      "name": "Mhasrul Police Station",
+      "location": {
+        "lat": 20.032542,
+        "lng": 73.802388
+      }
+    },
+    {
+      "id": "PS-MUMBAI",
+      "name": "Mumbai naka Police Station",
+      "location": {
+        "lat": 19.987591,
+        "lng": 73.783917
+      }
+    },
+    {
+      "id": "PS-PANCHAVATI",
+      "name": "Panchavati Police Station",
+      "location": {
+        "lat": 20.015643,
+        "lng": 73.796739
+      }
+    },
+    {
+      "id": "PS-SARKARWADA",
+      "name": "Sarkarwada Police Station",
+      "location": {
+        "lat": 20.00562,
+        "lng": 73.779772
+      }
+    },
+    {
+      "id": "PS-SATPUR",
+      "name": "Satpur Police Station",
+      "location": {
+        "lat": 19.991434,
+        "lng": 73.742909
+      }
+    },
+    {
+      "id": "PS-UPNAGAR",
+      "name": "Upnagar Police Station",
+      "location": {
+        "lat": 19.967381,
+        "lng": 73.824402
+      }
+    },
+    {
+      "id": "PS-NASHIK",
+      "name": "Nashik Road Police Station",
+      "location": {
+        "lat": 19.9528351,
+        "lng": 73.8397366
+      }
+    },
+    {
+      "id": "PS-MIDC",
+      "name": "MIDC Chunchale Police Chowki",
+      "location": {
+        "lat": 19.9506575,
+        "lng": 73.7368018
+      }
+    }
+  ],
+  "reunionPoints": [
+    {
+      "id": "RP-1",
+      "name": "Milan Kendra 1 — Ramkund Main Entry",
+      "zone": "Ramkund",
+      "location": {
+        "lat": 20.0067,
+        "lng": 73.79062
+      },
+      "landmark": "Panchavati / Ramkund access zone, near the no-vehicle barrier. Look for the green MILAN KENDRA banner.",
+      "landmark_mr": "पंचवटी / रामकुंड प्रवेश क्षेत्र, वाहन-बंद बॅरियरजवळ. हिरवे मिलन केंद्र बॅनर शोधा.",
+      "landmark_hi": "पंचवटी / रामकुंड प्रवेश क्षेत्र, नो-व्हीकल बैरियर के पास। हरा मिलन केंद्र बैनर देखें।",
+      "volunteerAssigned": "V-101",
+      "walkingTimeFromRamkundCenter": "3 minutes"
+    },
+    {
+      "id": "RP-2",
+      "name": "Milan Kendra 2 — Godavari Ghat Approach",
+      "zone": "Ramkund",
+      "location": {
+        "lat": 20.0064,
+        "lng": 73.7902
+      },
+      "landmark": "Godavari Ghat approaches, beside the police kiosk at the ghat steps.",
+      "landmark_mr": "गोदावरी घाट प्रवेशद्वार, घाटाच्या पायऱ्यांवरील पोलीस किओस्कजवळ.",
+      "landmark_hi": "गोदावरी घाट रास्ते, घाट की सीढ़ियों पर पुलिस किओस्क के पास।",
+      "volunteerAssigned": "V-202",
+      "walkingTimeFromRamkundCenter": "4 minutes"
+    },
+    {
+      "id": "RP-3",
+      "name": "Milan Kendra 3 — CBS / Central Bus Stand",
+      "zone": "Central",
+      "location": {
+        "lat": 19.9972,
+        "lng": 73.7799
+      },
+      "landmark": "Central Bus Stand main entrance. Yellow volunteer vest, green banner.",
+      "landmark_mr": "सेंट्रल बस स्टँड मुख्य प्रवेशद्वार. पिवळा स्वयंसेवक जॅकेट, हिरवे बॅनर.",
+      "landmark_hi": "केंद्रीय बस अड्डा मुख्य प्रवेश। पीला वॉलेंटियर जैकेट, हरा बैनर।",
+      "volunteerAssigned": "V-303",
+      "walkingTimeFromPanchavatiCenter": "10 minutes"
+    },
+    {
+      "id": "RP-4",
+      "name": "Milan Kendra 4 — Mahamarg Bus Stand",
+      "zone": "Central",
+      "location": {
+        "lat": 19.9888,
+        "lng": 73.7829
+      },
+      "landmark": "Mahamarg Bus Stand, near the main ticket counter. Orange flag post.",
+      "volunteerAssigned": "V-404",
+      "walkingTimeFromNashikRoadCenter": "15 minutes"
+    },
+    {
+      "id": "RP-5",
+      "name": "Milan Kendra 5 — Trimbakeshwar Temple East Gate",
+      "zone": "Trimbakeshwar",
+      "location": {
+        "lat": 19.933,
+        "lng": 73.5281
+      },
+      "landmark": "East gate of Trimbakeshwar temple complex, beside the information board.",
+      "volunteerAssigned": "V-505",
+      "walkingTimeFromTrimbakCenter": "5 minutes"
+    }
+  ],
+  "completedReunions": [
+    {
+      "id": "RU-001",
+      "foundPersonId": "FP-PREV-1",
+      "missingReportId": "LP-24755",
+      "completedAt": "2027-07-28T07:30:00Z",
+      "reunionPointId": "RP-1",
+      "centerWhereFoundPersonWas": "Ramkund Kho-Ya-Paya Kendra",
+      "centerWhereFamilyReported": "Ramkund Kho-Ya-Paya Kendra",
+      "timeToReunion": "18 minutes",
+      "cross_center": false
+    },
+    {
+      "id": "RU-002",
+      "foundPersonId": "FP-PREV-2",
+      "missingReportId": "LP-24761",
+      "completedAt": "2027-07-28T08:05:00Z",
+      "reunionPointId": "RP-3",
+      "centerWhereFoundPersonWas": "Trimbakeshwar Kho-Ya-Paya Kendra",
+      "centerWhereFamilyReported": "Panchavati Center",
+      "timeToReunion": "22 minutes",
+      "cross_center": true,
+      "note": "Classic cross-center case — family at Panchvati, person found at Trimbakeshwar. Unified search enabled the match."
+    }
+  ],
+  "handoverLogs": [],
+  "fpCounter": 109,
+  "lpCounter": 25006
+}

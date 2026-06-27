@@ -11,7 +11,7 @@ seedRegistry();
 seedDemoVolunteers();
 
 // ── Sync with server — server is canonical; overwrites seed on first response ─
-startRegistrySync(3000);
+startRegistrySync(60000);
 
 // ── Start offline queue sync ──────────────────────────────────────────────────
 startQueueSync(async (op: QueuedOperation) => {

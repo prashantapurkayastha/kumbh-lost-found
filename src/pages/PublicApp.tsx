@@ -37,7 +37,9 @@ export default function PublicApp() {
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [contactNumber, setContactNumber] = useState("");
+  const [missingDescription, setMissingDescription] = useState("");
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
+  const [registerOutput, setRegisterOutput] = useState<Record<string, unknown> | null>(null);
   const [reunionPoint, setReunionPoint] = useState<ReunionPoint | null>(null);
   const [refNumber, setRefNumber] = useState<string | null>(null);
   const [sosLoading, setSosLoading] = useState(false);
@@ -164,13 +166,14 @@ export default function PublicApp() {
       }
     }
 
-    // Extract reference number
+    // Extract reference number + full register output
     const regCall = result.toolCallsMade.find(
       (t) => t.name === "register_missing_person" || t.name === "register_found_person"
     );
     if (regCall) {
       const output = regCall.output as Record<string, unknown>;
       const ref = (output.referenceId ?? output.recordId) as string | undefined;
+      setRegisterOutput(output);
       if (ref) {
         setRefNumber(ref);
 
@@ -197,7 +200,14 @@ export default function PublicApp() {
         : "";
       return `I am lost and need help. ${locStr} Please help me get back to my family. I speak ${getLangName(lang)}.`;
     }
-    return ""; // Family flow: user types themselves
+    if (flowType === "report-missing" && missingDescription.trim()) {
+      const photoNote = photoBase64 ? " I have also attached a photo." : "";
+      const locStr = userLocation
+        ? ` My current location: ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}.`
+        : "";
+      return `I am looking for a missing family member.${locStr} Here are the details: ${missingDescription.trim()}${photoNote} I speak ${getLangName(lang)}.`;
+    }
+    return "";
   }
 
   function getLangName(code: string): string {
@@ -484,16 +494,19 @@ export default function PublicApp() {
           <div className="card">
             <div className="form-row">
               <label className="input-label">{t("phoneOptional", lang)}</label>
-              <input
-                type="tel"
-                value={contactNumber}
-                onChange={(e) => setContactNumber(e.target.value)}
-                placeholder="+91 XXXXXXXXXX"
-                className="input"
-              />
-              <p style={{ fontSize: 11, color: "#a8a29e", marginTop: 4 }}>
-                {t("phoneSub", lang)}
-              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+                <span style={{ background: "#f1f0ef", border: "1px solid #d6d3d1", borderRight: "none", padding: "10px 10px", borderRadius: "8px 0 0 8px", fontSize: 14, color: "#57534e", whiteSpace: "nowrap" }}>🇮🇳 +91</span>
+                <input
+                  type="tel"
+                  value={contactNumber}
+                  onChange={(e) => setContactNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="9876543210"
+                  className="input"
+                  style={{ borderRadius: "0 8px 8px 0", borderLeft: "none" }}
+                  maxLength={10}
+                />
+              </div>
+              <p style={{ fontSize: 11, color: "#a8a29e", marginTop: 4 }}>{t("phoneSub", lang)}</p>
             </div>
 
             {userLocation && (
@@ -501,8 +514,6 @@ export default function PublicApp() {
                 {t("locationCaptured", lang)} ({userLocation.source})
               </div>
             )}
-
-            <LanguageSelector value={lang} onChange={setLang} />
 
             <button
               onClick={() => setScreen("chat")}
@@ -549,13 +560,31 @@ export default function PublicApp() {
           <div className="card">
             <div className="form-row">
               <label className="input-label">{t("phoneRequired", lang)}</label>
-              <input
-                type="tel"
-                value={contactNumber}
-                onChange={(e) => setContactNumber(e.target.value)}
-                placeholder="+91 XXXXXXXXXX"
+              <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+                <span style={{ background: "#f1f0ef", border: "1px solid #d6d3d1", borderRight: "none", padding: "10px 10px", borderRadius: "8px 0 0 8px", fontSize: 14, color: "#57534e", whiteSpace: "nowrap" }}>🇮🇳 +91</span>
+                <input
+                  type="tel"
+                  value={contactNumber}
+                  onChange={(e) => setContactNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="9876543210"
+                  className="input"
+                  style={{ borderRadius: "0 8px 8px 0", borderLeft: "none" }}
+                  maxLength={10}
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <label className="input-label">📝 {t("describePersonLabel", lang)}</label>
+              <textarea
+                value={missingDescription}
+                onChange={(e) => setMissingDescription(e.target.value)}
+                placeholder={t("describePersonPlaceholder", lang)}
                 className="input"
+                rows={4}
+                style={{ resize: "none", lineHeight: 1.5 }}
               />
+              <p style={{ fontSize: 11, color: "#a8a29e", marginTop: 4 }}>{t("describePersonHint", lang)}</p>
             </div>
 
             <div className="form-row">
@@ -595,11 +624,11 @@ export default function PublicApp() {
               )}
             </div>
 
-            <LanguageSelector value={lang} onChange={setLang} />
-
             <button
               onClick={() => setScreen("chat")}
+              disabled={!missingDescription.trim()}
               className="btn btn-primary btn-full mt-16"
+              style={{ opacity: missingDescription.trim() ? 1 : 0.5 }}
             >
               {t("startReport", lang)}
             </button>
@@ -627,7 +656,7 @@ export default function PublicApp() {
 
         <ChatAgent
           langCode={lang}
-          initialPrompt={flowType === "i-am-lost" ? initial : undefined}
+          initialPrompt={initial || undefined}
           photoBase64={photoBase64}
           onResult={handleAgentResult}
           placeholder={
@@ -674,6 +703,35 @@ export default function PublicApp() {
                   {t("smsSent", lang)} {contactNumber}
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Registration details card */}
+          {registerOutput && (
+            <div className="card" style={{ marginTop: 12, background: "#f0fdf4", borderColor: "#86efac" }}>
+              <div className="card-title" style={{ color: "#15803d" }}>📋 Report Details</div>
+              {typeof registerOutput.referenceId === "string" && (
+                <div style={{ fontSize: 13, marginBottom: 6 }}>
+                  <strong>Reference ID:</strong> <span style={{ fontFamily: "monospace", color: "#1d4ed8" }}>{registerOutput.referenceId}</span>
+                </div>
+              )}
+              {Array.isArray(registerOutput.alertedCenters) && (registerOutput.alertedCenters as string[]).length > 0 && (
+                <div style={{ fontSize: 13, marginBottom: 6 }}>
+                  <strong>Centers alerted:</strong>{" "}
+                  {(registerOutput.alertedCenters as string[]).join(", ")}
+                </div>
+              )}
+              {typeof registerOutput.volunteersAlerted === "number" && (
+                <div style={{ fontSize: 13, marginBottom: 6 }}>
+                  <strong>🚨 AMBER Alert sent to:</strong>{" "}
+                  <span style={{ color: registerOutput.volunteersAlerted > 0 ? "#dc2626" : "#78716c" }}>
+                    {registerOutput.volunteersAlerted} volunteer{registerOutput.volunteersAlerted !== 1 ? "s" : ""} in the area
+                  </span>
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: "#15803d", marginTop: 8, fontStyle: "italic" }}>
+                ✅ All nearby help centers and volunteers have been notified
+              </div>
             </div>
           )}
 

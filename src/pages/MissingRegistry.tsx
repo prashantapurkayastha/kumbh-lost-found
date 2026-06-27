@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { registry } from "../core/backends/registry";
 import MapView, { type RouteTarget } from "../components/MapView";
+import ChatAgent from "../components/ChatAgent";
 import { RAMKUND_DEFAULT, type UserLocation } from "../services/location";
 import type { FoundPerson, MissingReport, HelpCenter } from "../types";
 
@@ -224,11 +225,11 @@ function FoundCard({
         )}
       </div>
 
-      {/* Missing report matches */}
+      {/* Missing report matches — contact number intentionally hidden (PII) */}
       {missMatches.length > 0 && (
         <div style={{ background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 8, padding: "6px 10px", marginTop: 6 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#c2410c" }}>⚠️ Family may be searching — Ref {missMatches[0].missingReportId}</div>
-          <div style={{ fontSize: 11, color: "#7c2d12" }}>Contact: {missMatches[0].contactNumber ?? "—"}</div>
+          <div style={{ fontSize: 11, color: "#7c2d12" }}>Go to the nearest help desk — they can connect you.</div>
         </div>
       )}
     </div>
@@ -240,6 +241,7 @@ export default function MissingRegistry() {
   const navigate = useNavigate();
   const topRef = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<Tab>("missing");
+  const [showFoundSomeone, setShowFoundSomeone] = useState(false);
   const [search, setSearch] = useState("");
   const [foundPersons, setFoundPersons] = useState<FoundPerson[]>([]);
   const [missingReports, setMissingReports] = useState<MissingReport[]>([]);
@@ -388,14 +390,67 @@ export default function MissingRegistry() {
 
         {/* CTA */}
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <button onClick={() => navigate("/")} className="btn btn-primary flex-1">
+          <button
+            onClick={() => navigate("/", { state: { initialScreen: "report-missing", initialFlow: "report-missing" } })}
+            className="btn btn-primary flex-1"
+          >
             🔍 Report Missing
           </button>
-          <button onClick={() => navigate("/help-desk")} className="btn btn-ghost flex-1">
-            🏥 Help Desk
+          <button
+            onClick={() => setShowFoundSomeone(true)}
+            className="btn btn-ghost flex-1"
+            style={{ borderColor: "#16a34a", color: "#15803d" }}
+          >
+            🙋 I Found Someone
           </button>
         </div>
       </div>
+
+      {/* "I Found Someone" slide-up panel */}
+      {showFoundSomeone && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 1000,
+          background: "rgba(0,0,0,.5)",
+          display: "flex", alignItems: "flex-end",
+        }}>
+          <div style={{
+            background: "white", borderRadius: "20px 20px 0 0",
+            width: "100%", maxHeight: "90dvh",
+            display: "flex", flexDirection: "column",
+          }}>
+            {/* Sheet header */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "16px 20px 12px",
+              borderBottom: "1px solid #e7e5e4",
+            }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: "#15803d" }}>🙋 I Found an Unaccompanied Person</div>
+                <div style={{ fontSize: 12, color: "#57534e", marginTop: 2 }}>Tell Claude the details — they'll register the person and check for matching family reports</div>
+              </div>
+              <button
+                onClick={() => setShowFoundSomeone(false)}
+                style={{ fontSize: 22, background: "none", border: "none", color: "#57534e", lineHeight: 1, padding: 4 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Chat agent */}
+            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <ChatAgent
+                langCode="en"
+                initialPrompt="I am a bystander at Kumbh Mela. I have found an unaccompanied person who seems to be lost or separated from their family. Please help me register them so their family can find them. I will describe them to you."
+                onResult={() => {
+                  setTimeout(() => setShowFoundSomeone(false), 3000);
+                }}
+                placeholder="Describe the person you found: age, clothing, where you found them…"
+                showVoice={false}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

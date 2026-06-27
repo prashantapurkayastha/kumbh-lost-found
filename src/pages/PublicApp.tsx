@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useLanguage } from "../context/LanguageContext";
 import MapView, { type MapMarker, type RouteTarget, type CctvPoint, type ChokepointData } from "../components/MapView";
 import cctvData from "../data/cctv.json";
 import chokepointData from "../data/chokepoints.json";
@@ -98,12 +99,18 @@ function MatchCheckEmpty({ onProceed }: { onProceed: () => void }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function PublicApp() {
   const navigate = useNavigate();
+  const location = useLocation();
   const isOnline = useOnline();
+  const { lang, setLang } = useLanguage();
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [screen, setScreen] = useState<Screen>("landing");
-  const [flowType, setFlowType] = useState<FlowType>("report-missing");
-  const [lang, setLang] = useState("mr"); // Default Marathi
+  // Support navigating directly to a screen via router state (e.g. from Registry)
+  const [screen, setScreen] = useState<Screen>(
+    (location.state as { initialScreen?: Screen } | null)?.initialScreen ?? "landing"
+  );
+  const [flowType, setFlowType] = useState<FlowType>(
+    (location.state as { initialFlow?: FlowType } | null)?.initialFlow ?? "report-missing"
+  );
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [nearbyDesks, setNearbyDesks] = useState<NearbyCenter[]>([]);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -116,6 +123,8 @@ export default function PublicApp() {
   const [lostName, setLostName] = useState("");
   const [lostAge, setLostAge] = useState("");
   const [lostDescription, setLostDescription] = useState("");
+  // Validation errors
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
   const [registerOutput, setRegisterOutput] = useState<Record<string, unknown> | null>(null);
   const [reunionPoint, setReunionPoint] = useState<ReunionPoint | null>(null);
@@ -133,6 +142,33 @@ export default function PublicApp() {
 
   const cctv = cctvData as CctvPoint[];
   const choke = chokepointData as ChokepointData[];
+
+  // ── Validation helpers ────────────────────────────────────────────────────
+  function validatePhone(val: string): string {
+    if (!val) return "";                          // optional unless explicitly required
+    if (val.length !== 10) return "Mobile number must be exactly 10 digits";
+    return "";
+  }
+  function validatePhoneRequired(val: string): string {
+    if (!val) return "Mobile number is required";
+    if (val.length !== 10) return "Mobile number must be exactly 10 digits";
+    return "";
+  }
+  function validateDescription(val: string, min = 20): string {
+    if (!val.trim()) return "Please describe the person";
+    if (val.trim().length < min) return `Please add more detail (at least ${min} characters)`;
+    return "";
+  }
+  function validateAge(val: string): string {
+    if (!val) return "";                          // optional
+    const n = parseInt(val, 10);
+    if (isNaN(n) || n < 1 || n > 110) return "Age must be between 1 and 110";
+    return "";
+  }
+  function validateWearing(val: string): string {
+    if (!val.trim()) return "Please describe what you are wearing";
+    return "";
+  }
 
   // ── Fetch location on mount + build derived data ──────────────────────────
   useEffect(() => {
@@ -646,25 +682,34 @@ export default function PublicApp() {
               <label className="input-label">🎂 Your age (optional)</label>
               <input
                 value={lostAge}
-                onChange={e => setLostAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                onChange={e => {
+                  setLostAge(e.target.value.replace(/\D/g, "").slice(0, 3));
+                  setErrors(ev => ({ ...ev, lostAge: validateAge(e.target.value.replace(/\D/g, "").slice(0, 3)) }));
+                }}
                 placeholder="e.g. 45"
                 className="input"
+                style={{ borderColor: errors.lostAge ? "#dc2626" : undefined }}
                 type="number"
                 min={1}
                 max={110}
               />
+              {errors.lostAge && <p style={{ fontSize: 11, color: "#dc2626", marginTop: 3 }}>⚠️ {errors.lostAge}</p>}
             </div>
 
             <div className="form-row">
               <label className="input-label">👗 What are you wearing?</label>
               <textarea
                 value={lostDescription}
-                onChange={e => setLostDescription(e.target.value)}
+                onChange={e => {
+                  setLostDescription(e.target.value);
+                  setErrors(ev => ({ ...ev, lostDescription: validateWearing(e.target.value) }));
+                }}
                 placeholder="e.g. White kurta and blue dhoti, yellow shawl, glasses"
                 className="input"
                 rows={2}
-                style={{ resize: "none" }}
+                style={{ resize: "none", borderColor: errors.lostDescription ? "#dc2626" : undefined }}
               />
+              {errors.lostDescription && <p style={{ fontSize: 11, color: "#dc2626", marginTop: 3 }}>⚠️ {errors.lostDescription}</p>}
             </div>
 
             <div className="form-row">
@@ -674,13 +719,18 @@ export default function PublicApp() {
                 <input
                   type="tel"
                   value={contactNumber}
-                  onChange={(e) => setContactNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    setContactNumber(v);
+                    setErrors(ev => ({ ...ev, contactNumber: validatePhone(v) }));
+                  }}
                   placeholder="9876543210"
                   className="input"
-                  style={{ borderRadius: "0 8px 8px 0", borderLeft: "none" }}
+                  style={{ borderRadius: "0 8px 8px 0", borderLeft: "none", borderColor: errors.contactNumber ? "#dc2626" : undefined }}
                   maxLength={10}
                 />
               </div>
+              {errors.contactNumber && <p style={{ fontSize: 11, color: "#dc2626", marginTop: 3 }}>⚠️ {errors.contactNumber}</p>}
               <p style={{ fontSize: 11, color: "#a8a29e", marginTop: 4 }}>{t("phoneSub", lang)}</p>
             </div>
 
@@ -691,7 +741,16 @@ export default function PublicApp() {
             )}
 
             <button
-              onClick={() => setScreen("chat")}
+              onClick={() => {
+                const newErrors = {
+                  lostDescription: validateWearing(lostDescription),
+                  lostAge: validateAge(lostAge),
+                  contactNumber: validatePhone(contactNumber),
+                };
+                setErrors(newErrors);
+                if (Object.values(newErrors).some(e => e)) return;
+                setScreen("chat");
+              }}
               className="btn btn-primary btn-full mt-16"
             >
               {t("startIAmLost", lang)}
@@ -740,25 +799,34 @@ export default function PublicApp() {
                 <input
                   type="tel"
                   value={contactNumber}
-                  onChange={(e) => setContactNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    setContactNumber(v);
+                    setErrors(ev => ({ ...ev, reportPhone: validatePhoneRequired(v) }));
+                  }}
                   placeholder="9876543210"
                   className="input"
-                  style={{ borderRadius: "0 8px 8px 0", borderLeft: "none" }}
+                  style={{ borderRadius: "0 8px 8px 0", borderLeft: "none", borderColor: errors.reportPhone ? "#dc2626" : undefined }}
                   maxLength={10}
                 />
               </div>
+              {errors.reportPhone && <p style={{ fontSize: 11, color: "#dc2626", marginTop: 3 }}>⚠️ {errors.reportPhone}</p>}
             </div>
 
             <div className="form-row">
               <label className="input-label">📝 {t("describePersonLabel", lang)}</label>
               <textarea
                 value={missingDescription}
-                onChange={(e) => setMissingDescription(e.target.value)}
+                onChange={(e) => {
+                  setMissingDescription(e.target.value);
+                  setErrors(ev => ({ ...ev, missingDescription: validateDescription(e.target.value) }));
+                }}
                 placeholder={t("describePersonPlaceholder", lang)}
                 className="input"
                 rows={4}
-                style={{ resize: "none", lineHeight: 1.5 }}
+                style={{ resize: "none", lineHeight: 1.5, borderColor: errors.missingDescription ? "#dc2626" : undefined }}
               />
+              {errors.missingDescription && <p style={{ fontSize: 11, color: "#dc2626", marginTop: 3 }}>⚠️ {errors.missingDescription}</p>}
               <p style={{ fontSize: 11, color: "#a8a29e", marginTop: 4 }}>{t("describePersonHint", lang)}</p>
             </div>
 
@@ -801,14 +869,18 @@ export default function PublicApp() {
 
             <button
               onClick={() => {
+                const newErrors = {
+                  reportPhone: validatePhoneRequired(contactNumber),
+                  missingDescription: validateDescription(missingDescription),
+                };
+                setErrors(newErrors);
+                if (Object.values(newErrors).some(e => e)) return;
                 // First do a quick client-side registry check before opening chat
                 const results = registry.searchFound({ description: missingDescription });
                 setPreCheckMatches(results.map(r => r as unknown as FoundPerson));
                 setScreen("match-check");
               }}
-              disabled={!missingDescription.trim()}
               className="btn btn-primary btn-full mt-16"
-              style={{ opacity: missingDescription.trim() ? 1 : 0.5 }}
             >
               {t("startReport", lang)}
             </button>

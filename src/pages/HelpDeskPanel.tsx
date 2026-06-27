@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView, { type MapMarker } from "../components/MapView";
 import ChatAgent from "../components/ChatAgent";
@@ -7,6 +7,7 @@ import { sendSMS } from "../services/sms";
 import { notifyBackend } from "../core/backends/notify";
 import { registry } from "../core/backends/registry";
 import { useOnline } from "../hooks/useOnline";
+import { computeHotspots } from "../services/hotspots";
 import type { AgentResult } from "../core/agent";
 import type { Notification } from "../types";
 
@@ -16,7 +17,7 @@ import type { Notification } from "../types";
 // Covers flows 3 (family at desk) and 6 (missing person at desk)
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Tab = "queue" | "register-found" | "search" | "notifications" | "psa";
+type Tab = "queue" | "register-found" | "search" | "verify" | "intel" | "notifications" | "psa";
 type Scenario = "family-reports" | "person-self-reports";
 
 // ── Dummy auth ────────────────────────────────────────────────────────────────
@@ -93,6 +94,7 @@ export default function HelpDeskPanel() {
   const centers = registry.getHelpCenters();
   const allFound = registry.getAllFoundPersons();
   const allMissing = registry.getAllMissingReports();
+  const { hotspots, suggested: suggestedDesks } = useMemo(() => computeHotspots(), []);
   const unread = notifications.filter((n) => !n.read).length;
 
   useEffect(() => {
@@ -196,12 +198,14 @@ export default function HelpDeskPanel() {
       </div>
 
       {/* Tabs */}
-      <div className="tab-nav">
-        {(["queue", "register-found", "search", "notifications", "psa"] as Tab[]).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`tab-btn${tab === t ? " active" : ""}`}>
+      <div className="tab-nav" style={{ overflowX: "auto", flexWrap: "nowrap" }}>
+        {(["queue", "register-found", "search", "verify", "intel", "notifications", "psa"] as Tab[]).map((t) => (
+          <button key={t} onClick={() => setTab(t)} className={`tab-btn${tab === t ? " active" : ""}`} style={{ whiteSpace: "nowrap" }}>
             {t === "queue" && "📋 Queue"}
             {t === "register-found" && "👤 Register"}
             {t === "search" && "🔍 Search"}
+            {t === "verify" && "🔐 Verify"}
+            {t === "intel" && "🧠 Intel"}
             {t === "psa" && "📢 PSA"}
             {t === "notifications" && (
               <>🔔{unread > 0 && <span style={{ background: "#dc2626", color: "white", borderRadius: 10, padding: "1px 6px", fontSize: 10, marginLeft: 4 }}>{unread}</span>}</>
@@ -432,8 +436,229 @@ export default function HelpDeskPanel() {
         </div>
       )}
 
+      {/* VERIFY — 4-digit PIN handover check */}
+      {tab === "verify" && <VerifyHandover deskId={deskId} />}
+
+      {/* INTEL — Separation hotspot map + suggested placements */}
+      {tab === "intel" && (
+        <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div className="card-title">🧠 Separation Hotspot Intelligence</div>
+            <p style={{ fontSize: 13, color: "#57534e", marginBottom: 12 }}>
+              Predicted separation clusters based on chokepoint density and CCTV pressure.
+              Purple pins = where a help desk would reduce separation risk most.
+            </p>
+            <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#57534e", marginBottom: 8 }}>
+              <span><span style={{ color: "#dc2626", fontWeight: 700 }}>●</span> High risk</span>
+              <span><span style={{ color: "#f97316", fontWeight: 700 }}>●</span> Medium risk</span>
+              <span><span style={{ color: "#eab308", fontWeight: 700 }}>●</span> Low risk</span>
+              <span><span style={{ color: "#7c3aed", fontWeight: 700 }}>📍</span> Suggested desk</span>
+            </div>
+          </div>
+
+          <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
+            <MapView
+              userLocation={userLocation}
+              markers={markers}
+              hotspots={hotspots}
+              suggestedDesks={suggestedDesks}
+              showHotspots={true}
+              height={340}
+              zoom={13}
+            />
+          </div>
+
+          {/* Underserved zone list */}
+          <div className="card-title">⚠️ Underserved High-Risk Zones</div>
+          {hotspots.filter((h) => h.isUnderserved && h.risk === "high").slice(0, 8).map((h, i) => (
+            <div key={i} className="notif-item" style={{ borderLeft: "3px solid #dc2626", background: "#fff5f5" }}>
+              <div className="notif-dot" style={{ background: "#dc2626" }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{h.name}</div>
+                <div style={{ fontSize: 12, color: "#57534e" }}>
+                  Density: {Math.round(h.densityScore * 100)}% · Nearest center: {h.nearestCenterKm} km away
+                </div>
+              </div>
+              <span className="badge badge-red">Underserved</span>
+            </div>
+          ))}
+          {hotspots.filter((h) => h.isUnderserved && h.risk === "high").length === 0 && (
+            <div style={{ textAlign: "center", padding: "20px", color: "#a8a29e", fontSize: 13 }}>
+              ✅ All high-risk zones are within 600 m of a help center
+            </div>
+          )}
+
+          {/* Suggested desk placements */}
+          {suggestedDesks.length > 0 && (
+            <>
+              <div className="card-title" style={{ marginTop: 16 }}>📍 Suggested Desk Placements</div>
+              {suggestedDesks.map((sd, i) => (
+                <div key={i} className="card" style={{ background: "#f5f3ff", borderColor: "#7c3aed", marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "#4c1d95" }}>{sd.label}</div>
+                    <span className={`badge ${sd.urgency === "critical" ? "badge-red" : "badge-amber"}`}>{sd.urgency}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#57534e", marginTop: 4 }}>{sd.reason}</div>
+                  <div style={{ fontSize: 11, color: "#a8a29e", marginTop: 4 }}>
+                    📍 {sd.lat.toFixed(5)}, {sd.lng.toFixed(5)}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
       {/* PSA — Public Service Announcement broadcaster */}
       {tab === "psa" && <PSABroadcaster />}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Verify Handover — 4-digit PIN check before releasing a found person
+// ─────────────────────────────────────────────────────────────────────────────
+function VerifyHandover({ deskId }: { deskId: string }) {
+  const [reportId, setReportId] = useState("");
+  const [fpId, setFpId] = useState("");
+  const [pin, setPin] = useState("");
+  const [operatorName, setOperatorName] = useState("");
+  const [result, setResult] = useState<{ ok: boolean; message: string; reportedBy?: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [handoverDone, setHandoverDone] = useState(false);
+
+  const recentLogs = registry.getHandoverLogs().slice(-5).reverse();
+
+  function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    // Simulate network delay for effect
+    setTimeout(() => {
+      const res = registry.verifyHandover(reportId.trim().toUpperCase(), fpId.trim().toUpperCase(), pin.trim());
+      setResult({ ok: res.ok, message: res.message, reportedBy: res.report?.reportedBy });
+      setLoading(false);
+    }, 400);
+  }
+
+  function handleLogHandover() {
+    if (!reportId || !fpId || !operatorName) return;
+    registry.logHandover(reportId.trim().toUpperCase(), fpId.trim().toUpperCase(), deskId, operatorName);
+    setHandoverDone(true);
+    setResult(null);
+    setReportId(""); setFpId(""); setPin("");
+  }
+
+  return (
+    <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-title">🔐 Handover Verification</div>
+        <p style={{ fontSize: 13, color: "#57534e", marginBottom: 16 }}>
+          Family must quote the <strong>4-digit PIN</strong> issued when the missing report was filed.
+          Do not release anyone without a matching PIN.
+        </p>
+
+        {handoverDone && (
+          <div style={{ background: "#f0fdf4", border: "1px solid #16a34a", borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13, color: "#15803d", fontWeight: 600 }}>
+            ✅ Handover logged. Report marked resolved. Person released.
+          </div>
+        )}
+
+        <form onSubmit={handleVerify} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label className="input-label">Missing Report ID (e.g. LP-25000)</label>
+            <input
+              className="input"
+              value={reportId}
+              onChange={e => { setReportId(e.target.value); setResult(null); setHandoverDone(false); }}
+              placeholder="LP-25000"
+              style={{ fontFamily: "monospace", fontWeight: 700 }}
+            />
+          </div>
+          <div>
+            <label className="input-label">Found Person ID (e.g. FP-100) — optional</label>
+            <input
+              className="input"
+              value={fpId}
+              onChange={e => { setFpId(e.target.value); setResult(null); }}
+              placeholder="FP-100"
+              style={{ fontFamily: "monospace" }}
+            />
+          </div>
+          <div>
+            <label className="input-label">4-Digit Verification PIN</label>
+            <input
+              className="input"
+              value={pin}
+              onChange={e => { setPin(e.target.value.replace(/\D/g, "").slice(0, 4)); setResult(null); }}
+              placeholder="••••"
+              maxLength={4}
+              inputMode="numeric"
+              style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 22, letterSpacing: 8, textAlign: "center" }}
+            />
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={loading || pin.length < 4 || !reportId}>
+            {loading ? <><span className="spinner" /> Checking…</> : "🔐 Verify PIN"}
+          </button>
+        </form>
+
+        {result && (
+          <div style={{
+            marginTop: 16,
+            padding: 14,
+            borderRadius: 10,
+            background: result.ok ? "#f0fdf4" : "#fef2f2",
+            border: `2px solid ${result.ok ? "#16a34a" : "#dc2626"}`,
+            fontSize: 14,
+            color: result.ok ? "#15803d" : "#b91c1c",
+            fontWeight: 600,
+          }}>
+            {result.message}
+            {result.ok && result.reportedBy && (
+              <div style={{ fontSize: 12, color: "#57534e", fontWeight: 400, marginTop: 6 }}>
+                Report filed by: {result.reportedBy}
+              </div>
+            )}
+          </div>
+        )}
+
+        {result?.ok && !handoverDone && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div>
+              <label className="input-label">Your name (operator)</label>
+              <input className="input" value={operatorName} onChange={e => setOperatorName(e.target.value)} placeholder="Desk operator name" />
+            </div>
+            <button
+              className="btn btn-primary"
+              style={{ background: "#16a34a", borderColor: "#16a34a" }}
+              onClick={handleLogHandover}
+              disabled={!operatorName}
+            >
+              ✅ Confirm Release & Log Handover
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Recent handover log */}
+      {recentLogs.length > 0 && (
+        <div>
+          <div className="card-title">📋 Recent Handovers (this session)</div>
+          {recentLogs.map((log) => (
+            <div key={log.id} className="notif-item" style={{ borderLeft: "3px solid #16a34a" }}>
+              <div className="notif-dot" style={{ background: "#16a34a" }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>
+                  {log.reportId} → {log.foundPersonId || "—"}
+                </div>
+                <div style={{ fontSize: 12, color: "#57534e" }}>
+                  Operator: {log.verifiedBy} · {new Date(log.verifiedAt).toLocaleTimeString()}
+                </div>
+              </div>
+              <span className="badge badge-green">Released</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

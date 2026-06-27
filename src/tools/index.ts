@@ -178,10 +178,11 @@ const registerMissingPerson: AgentTool = {
 
     const result: Record<string, unknown> = {
       referenceId: report.id,
+      verificationCode: report.verificationCode,
       status: "registered",
       alertedCenters,
       volunteersAlerted: volsAlerted,
-      message: `Report ${report.id} registered. ${alertedCenters.length} centers and ${volsAlerted} nearby volunteers alerted.`,
+      message: `Report ${report.id} registered. Verification code: ${report.verificationCode} — the family must quote this at the help desk before any person is released. ${alertedCenters.length} centers and ${volsAlerted} nearby volunteers alerted.`,
     };
 
     if (report.is_duplicate_report && report.duplicate_of) {

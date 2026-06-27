@@ -9,6 +9,7 @@ import type {
   FoundPersonMatch,
   RegisterFoundPersonInput,
   RegisterMissingPersonInput,
+  HandoverLog,
 } from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,8 +23,13 @@ let helpCenters: HelpCenter[] = [];
 let policeStations: PoliceStation[] = [];
 let reunionPoints: ReunionPoint[] = [];
 let completedReunions: CompletedReunion[] = [];
+let handoverLogs: HandoverLog[] = [];
 let fpCounter = 100;
 let lpCounter = 25000;
+
+function gen4PIN(): string {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
 
 // ─── Load functions (called by seed.ts) ──────────────────────────────────────
 
@@ -207,6 +213,7 @@ export const registry = {
       reportedBy: input.reporterName ?? "Unknown",
       contactNumber: input.contactNumber,
       reportingCenter: input.reportingCenter ?? "Unknown Center",
+      verificationCode: gen4PIN(),
       missingPerson: {
         name: input.name,
         ageRange: input.ageRange,
@@ -255,6 +262,54 @@ export const registry = {
 
     foundPersons.push(fp);
     return fp;
+  },
+
+  // ── Handover verification ──────────────────────────────────────────────────────
+  verifyHandover(reportId: string, fpId: string, code: string): {
+    ok: boolean;
+    report?: MissingReport;
+    foundPerson?: FoundPerson;
+    message: string;
+  } {
+    const report = missingReports.find(r => r.id === reportId);
+    if (!report) return { ok: false, message: `No report found with ID ${reportId}` };
+    if (report.status !== "active") return { ok: false, message: `Report ${reportId} is already ${report.status}` };
+    if (report.verificationCode !== code.trim()) {
+      return { ok: false, report, message: "❌ Verification code does not match — do not release. Re-confirm identity or call police (100)." };
+    }
+    const fp = fpId ? foundPersons.find(p => p.id === fpId) : undefined;
+    return {
+      ok: true,
+      report,
+      foundPerson: fp,
+      message: `✅ Identity verified — safe to release ${fp ? fp.id : ""}. Report filed by ${report.reportedBy}.`,
+    };
+  },
+
+  logHandover(reportId: string, fpId: string, centerId: string, operatorId: string) {
+    const log: HandoverLog = {
+      id: `HO-${Date.now()}`,
+      reportId,
+      foundPersonId: fpId,
+      verifiedBy: operatorId,
+      verifiedAt: new Date().toISOString(),
+      centerId,
+    };
+    handoverLogs.push(log);
+    this.resolveReport(reportId, fpId);
+    return log;
+  },
+
+  getHandoverLogs(): HandoverLog[] {
+    return handoverLogs;
+  },
+
+  getMissingReportById(id: string): MissingReport | undefined {
+    return missingReports.find(r => r.id === id);
+  },
+
+  getFoundPersonById(id: string): FoundPerson | undefined {
+    return foundPersons.find(p => p.id === id);
   },
 
   // ── Mark reunited ─────────────────────────────────────────────────────────────

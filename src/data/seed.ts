@@ -21,7 +21,12 @@ export function seedRegistry() {
   registry.loadPoliceStations(seedData.policeStations as PoliceStation[]);
   registry.loadReunionPoints(seedData.reunionPoints as ReunionPoint[]);
   registry.loadFoundPersons(seedData.foundPersons as FoundPerson[]);
-  registry.loadMissingReports(seedData.missingPersonReports as MissingReport[]);
+  // Backfill verification codes for seeded reports that don't have one
+  const seededReports = (seedData.missingPersonReports as MissingReport[]).map(r => ({
+    ...r,
+    verificationCode: r.verificationCode ?? String(Math.floor(1000 + Math.random() * 9000)),
+  }));
+  registry.loadMissingReports(seededReports);
   registry.loadCompletedReunions(seedData.completedReunions as CompletedReunion[]);
 
   console.log("[seed] Registry loaded:");

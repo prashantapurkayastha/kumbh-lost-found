@@ -14,9 +14,26 @@ import { t } from "../i18n/translations";
 import { getActiveVolunteers, type VolunteerRecord } from "../services/volunteers";
 import { registry as regBackend } from "../core/backends/registry";
 import { haversineKm, walkingMinutes } from "../core/backends/geo";
+import { getQueue } from "../services/offlineQueue";
 import type { AgentResult } from "../core/agent";
 import type { ReunionPoint, FoundPerson } from "../types";
 import { RAMKUND_DEFAULT } from "../services/location";
+
+/** Extract a human-friendly zone label from a center/zone name — hides exact desk identity */
+function maskZone(centerOrZone: string): string {
+  const z = centerOrZone.toLowerCase();
+  if (z.includes("ramkund") || z.includes("ram kund")) return "Ramkund area";
+  if (z.includes("panchavati") || z.includes("panchvati")) return "Panchavati area";
+  if (z.includes("trimbak") || z.includes("kushavart")) return "Trimbakeshwar area";
+  if (z.includes("sadhugram") || z.includes("sadhu")) return "Sadhugram area";
+  if (z.includes("tapovan")) return "Tapovan area";
+  if (z.includes("nashik road") || z.includes("railway")) return "Nashik Road area";
+  if (z.includes("adgaon")) return "Adgaon area";
+  if (z.includes("bharatbharati") || z.includes("central")) return "Central Nashik area";
+  // Fall back to first 2 words of zone string + "area"
+  const words = centerOrZone.split(/[\s-]+/).slice(0, 2).join(" ");
+  return words ? `${words} area` : "Nashik area";
+}
 
 // ── Shared markdown renderer (same logic as ChatAgent) ─────────────────────
 function renderInline(text: string): React.ReactNode {
@@ -282,13 +299,14 @@ export default function PublicApp() {
 
   // LANDING
   if (screen === "landing") {
+    const queueCount = getQueue().length;
     return (
       <div className="page" style={{ background: "linear-gradient(180deg, #fff8f4 0%, #faf9f7 100%)" }}>
-        {!isOnline && (
+        {!isOnline ? (
           <div className="offline-banner">
-            ⚠️ You are offline — reports will be saved and sent when connectivity returns
+            📵 Offline — matching locally on device{queueCount > 0 ? ` · ${queueCount} report${queueCount > 1 ? "s" : ""} queued for sync` : ""}
           </div>
-        )}
+        ) : null}
 
         {/* Header */}
         <div className="page-header" style={{ justifyContent: "space-between" }}>
@@ -297,6 +315,10 @@ export default function PublicApp() {
             <div style={{ fontSize: 11, color: "#78716c" }}>{t("subtitle", lang)}</div>
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {/* Always-visible: matching runs locally on device */}
+            <span style={{ fontSize: 10, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 10, padding: "2px 7px", whiteSpace: "nowrap", fontWeight: 600 }}>
+              🔵 Matching locally
+            </span>
             <LanguageSelector value={lang} onChange={setLang} compact />
             <button
               onClick={() => navigate("/registry")}
@@ -831,11 +853,12 @@ export default function PublicApp() {
                       <span style={{ fontFamily: "monospace", fontSize: 10, background: "#e0f2fe", color: "#0369a1", padding: "2px 6px", borderRadius: 4 }}>{fp.id}</span>
                     </div>
 
-                    {/* Center info */}
+                    {/* Center info — zone-masked, exact desk revealed only in person */}
                     <div style={{ background: "#eff6ff", borderRadius: 8, padding: "8px 10px", marginTop: 8 }}>
-                      <div style={{ fontWeight: 700, fontSize: 12, color: "#1d4ed8" }}>🏥 Currently at: {fp.centerName}</div>
+                      <div style={{ fontWeight: 700, fontSize: 12, color: "#1d4ed8" }}>📍 Last seen in: {maskZone(fp.foundZone || fp.centerName)}</div>
+                      <div style={{ fontSize: 11, color: "#57534e", marginTop: 2 }}>Go to any help desk in this area — they can confirm location</div>
                       {center?.contactNumber && (
-                        <a href={`tel:${center.contactNumber}`} style={{ fontSize: 12, color: "#1d4ed8", display: "block", marginTop: 2 }}>📞 {center.contactNumber}</a>
+                        <a href={`tel:${center.contactNumber}`} style={{ fontSize: 12, color: "#1d4ed8", display: "block", marginTop: 2 }}>📞 Area helpline: {center.contactNumber}</a>
                       )}
                     </div>
 
@@ -958,6 +981,20 @@ export default function PublicApp() {
                   <strong>Reference ID:</strong> <span style={{ fontFamily: "monospace", color: "#1d4ed8" }}>{registerOutput.referenceId}</span>
                 </div>
               )}
+
+              {/* 🔐 Handover PIN — shown prominently */}
+              {typeof registerOutput.verificationCode === "string" && (
+                <div style={{ background: "#fffbeb", border: "2px solid #f59e0b", borderRadius: 10, padding: "12px 14px", margin: "10px 0" }}>
+                  <div style={{ fontSize: 12, color: "#92400e", fontWeight: 700, marginBottom: 4 }}>🔐 Your Handover Code</div>
+                  <div style={{ fontFamily: "monospace", fontSize: 36, fontWeight: 900, letterSpacing: 14, color: "#1e293b", textAlign: "center" }}>
+                    {registerOutput.verificationCode}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#92400e", marginTop: 6, textAlign: "center", lineHeight: 1.4 }}>
+                    Quote this 4-digit code at any help desk before anyone is released. Keep it private.
+                  </div>
+                </div>
+              )}
+
               {Array.isArray(registerOutput.alertedCenters) && (registerOutput.alertedCenters as string[]).length > 0 && (
                 <div style={{ fontSize: 13, marginBottom: 6 }}>
                   <strong>Centers alerted:</strong>{" "}

@@ -83,6 +83,17 @@ export interface MissingReport {
   matchedFoundPersonId: string | null;
   is_duplicate_report: boolean;
   duplicate_of?: string;
+  /** 4-digit PIN shown to family; must be quoted in-person at desk before handover */
+  verificationCode: string;
+}
+
+export interface HandoverLog {
+  id: string;
+  reportId: string;
+  foundPersonId: string;
+  verifiedBy: string; // desk operator name/ID
+  verifiedAt: string;
+  centerId: string;
 }
 
 export interface Notification {

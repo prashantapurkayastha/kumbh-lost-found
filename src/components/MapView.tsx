@@ -73,6 +73,8 @@ export interface RouteTarget {
 
 export interface CctvPoint { id: string; lat: number; lng: number; label: string; }
 export interface ChokepointData { name: string; lat: number; lng: number; }
+export interface HotspotLayer { lat: number; lng: number; name: string; densityScore: number; risk: "high" | "medium" | "low"; nearestCenterKm: number; isUnderserved: boolean; }
+export interface SuggestedDeskLayer { lat: number; lng: number; label: string; reason: string; urgency: "critical" | "high" | "medium"; }
 
 interface Props {
   userLocation?: UserLocation | null;
@@ -83,13 +85,16 @@ interface Props {
   chokepoints?: ChokepointData[];
   showCctv?: boolean;
   showChokepoints?: boolean;
+  hotspots?: HotspotLayer[];
+  suggestedDesks?: SuggestedDeskLayer[];
+  showHotspots?: boolean;
   height?: string | number;
   zoom?: number;
 }
 
 const RAMKUND = { lat: 20.0039, lng: 73.7894 };
 
-export default function MapView({ userLocation, markers = [], reunionPoint, routeTo, cctvPoints = [], chokepoints = [], showCctv = false, showChokepoints = false, height = 320, zoom = 14 }: Props) {
+export default function MapView({ userLocation, markers = [], reunionPoint, routeTo, cctvPoints = [], chokepoints = [], showCctv = false, showChokepoints = false, hotspots = [], suggestedDesks = [], showHotspots = false, height = 320, zoom = 14 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -97,6 +102,7 @@ export default function MapView({ userLocation, markers = [], reunionPoint, rout
   const routeInfoRef = useRef<L.Control | null>(null);
   const cctvLayerRef = useRef<L.LayerGroup | null>(null);
   const chokeLayerRef = useRef<L.LayerGroup | null>(null);
+  const hotspotLayerRef = useRef<L.LayerGroup | null>(null);
 
   // ── Init map once ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -125,6 +131,7 @@ export default function MapView({ userLocation, markers = [], reunionPoint, rout
     routeLayerRef.current = L.layerGroup().addTo(map);
     cctvLayerRef.current = L.layerGroup().addTo(map);
     chokeLayerRef.current = L.layerGroup().addTo(map);
+    hotspotLayerRef.current = L.layerGroup().addTo(map);
 
     // High-density zone circles (official no-vehicle pressure zones from dataset)
     const highDensityZones = [
@@ -243,6 +250,63 @@ export default function MapView({ userLocation, markers = [], reunionPoint, rout
         .addTo(layer);
     });
   }, [showChokepoints, chokepoints]);
+
+  // ── Hotspot layer ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const layer = hotspotLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (!showHotspots) return;
+
+    const RISK_COLOR: Record<string, string> = {
+      high: "#dc2626",
+      medium: "#f97316",
+      low: "#eab308",
+    };
+
+    // Density circles for each hotspot
+    hotspots.forEach((h) => {
+      const color = RISK_COLOR[h.risk];
+      const radius = 80 + h.densityScore * 200; // 80–280m radius
+      L.circle([h.lat, h.lng], {
+        radius,
+        color,
+        fillColor: color,
+        fillOpacity: h.isUnderserved ? 0.3 : 0.15,
+        weight: h.isUnderserved ? 2 : 1,
+        dashArray: h.isUnderserved ? undefined : "4 4",
+      })
+        .bindPopup(
+          `<strong>${h.risk.toUpperCase()} RISK</strong><br/>
+          ${h.name}<br/>
+          Density: ${Math.round(h.densityScore * 100)}%<br/>
+          Nearest center: ${h.nearestCenterKm} km<br/>
+          ${h.isUnderserved ? "<span style='color:#dc2626;font-weight:bold'>⚠️ UNDERSERVED ZONE</span>" : ""}`
+        )
+        .addTo(layer);
+    });
+
+    // Suggested desk pins
+    const suggestedIcon = (urgency: string) => L.divIcon({
+      html: `<div style="background:${urgency === "critical" ? "#7c3aed" : "#6d28d9"};color:white;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3);border:2px solid white;">
+        📍 DESK HERE
+      </div>`,
+      className: "",
+      iconSize: [90, 28],
+      iconAnchor: [45, 14],
+      popupAnchor: [0, -18],
+    });
+
+    suggestedDesks.forEach((sd) => {
+      L.marker([sd.lat, sd.lng], { icon: suggestedIcon(sd.urgency), zIndexOffset: 800 })
+        .bindPopup(
+          `<strong>🏥 ${sd.label}</strong><br/>
+          <span style="color:#7c3aed;font-weight:bold">${sd.urgency.toUpperCase()} PRIORITY</span><br/>
+          <small>${sd.reason}</small>`
+        )
+        .addTo(layer);
+    });
+  }, [showHotspots, hotspots, suggestedDesks]);
 
   // ── Update markers ─────────────────────────────────────────────────────────
   useEffect(() => {

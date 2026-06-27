@@ -5,6 +5,21 @@ import MapView, { type RouteTarget } from "../components/MapView";
 import { RAMKUND_DEFAULT, type UserLocation } from "../services/location";
 import type { FoundPerson, MissingReport, HelpCenter } from "../types";
 
+/** Extract human-friendly zone label — hides exact desk for public registry */
+function maskZone(s: string): string {
+  const z = s.toLowerCase();
+  if (z.includes("ramkund") || z.includes("ram kund")) return "Ramkund area";
+  if (z.includes("panchavati") || z.includes("panchvati")) return "Panchavati area";
+  if (z.includes("trimbak") || z.includes("kushavart")) return "Trimbakeshwar area";
+  if (z.includes("sadhugram")) return "Sadhugram area";
+  if (z.includes("tapovan")) return "Tapovan area";
+  if (z.includes("nashik road") || z.includes("railway")) return "Nashik Road area";
+  if (z.includes("adgaon")) return "Adgaon area";
+  if (z.includes("bharatbharati") || z.includes("central")) return "Central Nashik area";
+  const words = s.split(/[\s-]+/).slice(0, 2).join(" ");
+  return words ? `${words} area` : "Nashik area";
+}
+
 const NASHIK_LOC: UserLocation = { ...RAMKUND_DEFAULT, accuracy: 0, source: "default" };
 
 type Tab = "missing" | "found";
@@ -87,19 +102,21 @@ function MissingCard({
         <span style={{ fontSize: 11, color: "#a8a29e", flexShrink: 0 }}>{timeAgo(mr.registeredAt)}</span>
       </div>
 
-      {/* Description */}
+      {/* Description — show "—" for blank fields, don't hide incomplete entries */}
       <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
         <span style={{ fontSize: 28 }}>{genderIcon(mp.gender)}</span>
         <div>
           <div style={{ fontWeight: 700, fontSize: 14 }}>
-            {mp.name ? mp.name : "Unknown"} · {mp.gender} · {mp.ageRange}
+            {mp.name || <span style={{ color: "#a8a29e" }}>—</span>} · {mp.gender || <span style={{ color: "#a8a29e" }}>—</span>} · {mp.ageRange || <span style={{ color: "#a8a29e" }}>—</span>}
           </div>
-          <div style={{ fontSize: 12, color: "#57534e" }}>👗 {mp.clothing}</div>
+          <div style={{ fontSize: 12, color: "#57534e" }}>👗 {mp.clothing || <span style={{ color: "#a8a29e" }}>— clothing not described</span>}</div>
           <div style={{ fontSize: 11, color: "#78716c" }}>
-            📍 Last seen: {mp.lastSeenLocation}
-            {mp.lastSeenTime && ` · ⏰ ${typeof mp.lastSeenTime === "string" && mp.lastSeenTime.includes("T") ? timeAgo(mp.lastSeenTime) : mp.lastSeenTime}`}
+            📍 Last seen: {mp.lastSeenLocation || <span style={{ color: "#a8a29e" }}>—</span>}
+            {mp.lastSeenTime ? ` · ⏰ ${typeof mp.lastSeenTime === "string" && mp.lastSeenTime.includes("T") ? timeAgo(mp.lastSeenTime) : mp.lastSeenTime}` : ""}
           </div>
-          <div style={{ fontSize: 11, color: "#a8a29e" }}>🗣 {mp.languageSpoken} · Reported by: {mr.reportedBy}</div>
+          <div style={{ fontSize: 11, color: "#a8a29e" }}>
+            🗣 {mp.languageSpoken || "—"} · Reported by: {mr.reportedBy || "—"}
+          </div>
         </div>
       </div>
 
@@ -190,10 +207,11 @@ function FoundCard({
         </div>
       </div>
 
-      {/* Where they are now */}
+      {/* Where they are now — zone-masked for predator-proofing */}
       <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "8px 10px", marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 12, color: "#1d4ed8" }}>🏥 Currently at: {fp.centerName}</div>
+          <div style={{ fontWeight: 700, fontSize: 12, color: "#1d4ed8" }}>📍 Location: {maskZone(fp.foundZone || fp.centerName)}</div>
+          <div style={{ fontSize: 11, color: "#57534e" }}>Visit any help desk in this area to confirm</div>
           {center?.contactNumber && <a href={`tel:${center.contactNumber}`} style={{ fontSize: 11, color: "#1d4ed8" }}>📞 {center.contactNumber}</a>}
         </div>
         {center && (

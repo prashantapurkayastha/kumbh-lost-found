@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import MapView, { type MapMarker } from "../components/MapView";
+import MapView, { type MapMarker, type CctvPoint } from "../components/MapView";
 import ChatAgent from "../components/ChatAgent";
 import { getUserLocation, type UserLocation } from "../services/location";
 import { sendSMS } from "../services/sms";
@@ -8,8 +8,10 @@ import { notifyBackend } from "../core/backends/notify";
 import { registry } from "../core/backends/registry";
 import { useOnline } from "../hooks/useOnline";
 import { computeHotspots } from "../services/hotspots";
+import { haversineKm } from "../core/backends/geo";
 import type { AgentResult } from "../core/agent";
-import type { Notification } from "../types";
+import type { Notification, PoliceStation } from "../types";
+import cctvRaw from "../data/cctv.json";
 
 // ────────────────────────��────────────────────────────────────────────────────
 // Help Desk Panel
@@ -17,7 +19,7 @@ import type { Notification } from "../types";
 // Covers flows 3 (family at desk) and 6 (missing person at desk)
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Tab = "queue" | "register-found" | "search" | "verify" | "intel" | "notifications" | "psa";
+type Tab = "queue" | "register-found" | "search" | "verify" | "intel" | "cctv" | "notifications" | "psa";
 type Scenario = "family-reports" | "person-self-reports";
 
 // ── Dummy auth ────────────────────────────────────────────────────────────────
@@ -199,13 +201,14 @@ export default function HelpDeskPanel() {
 
       {/* Tabs */}
       <div className="tab-nav" style={{ overflowX: "auto", flexWrap: "nowrap" }}>
-        {(["queue", "register-found", "search", "verify", "intel", "notifications", "psa"] as Tab[]).map((t) => (
+        {(["queue", "register-found", "search", "verify", "intel", "cctv", "notifications", "psa"] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`tab-btn${tab === t ? " active" : ""}`} style={{ whiteSpace: "nowrap" }}>
             {t === "queue" && "📋 Queue"}
             {t === "register-found" && "👤 Register"}
             {t === "search" && "🔍 Search"}
             {t === "verify" && "🔐 Verify"}
             {t === "intel" && "🧠 Intel"}
+            {t === "cctv" && "📷 CCTV"}
             {t === "psa" && "📢 PSA"}
             {t === "notifications" && (
               <>🔔{unread > 0 && <span style={{ background: "#dc2626", color: "white", borderRadius: 10, padding: "1px 6px", fontSize: 10, marginLeft: 4 }}>{unread}</span>}</>
@@ -239,8 +242,11 @@ export default function HelpDeskPanel() {
                 const matches = registry.searchMissingReports(fp);
                 const hasMatch = matches.length > 0;
                 return (
-                  <div key={fp.id} className="notif-item" style={{ borderLeft: hasMatch ? "3px solid #f97316" : undefined, background: hasMatch ? "#fff8f4" : undefined, borderRadius: hasMatch ? 6 : undefined }}>
-                    <div className="notif-dot" style={{ background: fp.condition === "distressed" ? "#dc2626" : "#16a34a" }} />
+                  <div key={fp.id} className="notif-item" style={{ borderLeft: hasMatch ? "3px solid #f97316" : undefined, background: hasMatch ? "#fff8f4" : undefined, borderRadius: hasMatch ? 6 : undefined, alignItems: "flex-start" }}>
+                    {fp.photoBase64 && (
+                      <img src={`data:image/jpeg;base64,${fp.photoBase64}`} alt="Person" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 6, flexShrink: 0, border: "1px solid #e5e7eb", marginRight: 6 }} />
+                    )}
+                    {!fp.photoBase64 && <div className="notif-dot" style={{ background: fp.condition === "distressed" ? "#dc2626" : "#16a34a" }} />}
                     <div style={{ flex: 1 }}>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span style={{ fontWeight: 700, fontSize: 13 }}>{fp.id}</span>
@@ -274,8 +280,11 @@ export default function HelpDeskPanel() {
                 });
                 const hasMatch = matches.length > 0;
                 return (
-                  <div key={mr.id} className="notif-item" style={{ borderLeft: hasMatch ? "3px solid #16a34a" : undefined, background: hasMatch ? "#f0fdf4" : undefined, borderRadius: hasMatch ? 6 : undefined }}>
-                    <div className="notif-dot" style={{ background: "#d97706" }} />
+                  <div key={mr.id} className="notif-item" style={{ borderLeft: hasMatch ? "3px solid #16a34a" : undefined, background: hasMatch ? "#f0fdf4" : undefined, borderRadius: hasMatch ? 6 : undefined, alignItems: "flex-start" }}>
+                    {mr.photoBase64 && (
+                      <img src={`data:image/jpeg;base64,${mr.photoBase64}`} alt="Person" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 6, flexShrink: 0, border: "1px solid #e5e7eb", marginRight: 6 }} />
+                    )}
+                    {!mr.photoBase64 && <div className="notif-dot" style={{ background: "#d97706" }} />}
                     <div style={{ flex: 1 }}>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span style={{ fontWeight: 700, fontSize: 13 }}>{mr.id}</span>
@@ -510,8 +519,230 @@ export default function HelpDeskPanel() {
         </div>
       )}
 
+      {/* CCTV — Camera lookup + nearest police station notification */}
+      {tab === "cctv" && <CCTVPanel deskId={deskId} userLocation={userLocation} />}
+
       {/* PSA — Public Service Announcement broadcaster */}
       {tab === "psa" && <PSABroadcaster />}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CCTV Panel — find cameras near a zone/ref + notify nearest police station
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ALL_CCTV = cctvRaw as CctvPoint[];
+
+function CCTVPanel({ deskId, userLocation }: { deskId: string; userLocation: UserLocation | null }) {
+  const [query, setQuery] = useState("");
+  const [refId, setRefId] = useState("");
+  const [cameras, setCameras] = useState<CctvPoint[]>([]);
+  const [searched, setSearched] = useState(false);
+  const [centerLat, setCenterLat] = useState<number | null>(null);
+  const [centerLng, setCenterLng] = useState<number | null>(null);
+  const [notifyStatus, setNotifyStatus] = useState<Record<string, "idle" | "sending" | "sent">>({});
+
+  const policeStations: PoliceStation[] = registry.getPoliceStations();
+
+  function handleSearch() {
+    // Try to find the report/zone to get coordinates
+    let lat: number | null = null;
+    let lng: number | null = null;
+
+    // Try by ref ID — look up report, then use center lat/lng
+    if (refId.trim()) {
+      const report = registry.getMissingReportById(refId.trim().toUpperCase());
+      if (report) {
+        const centerObj = registry.getCenterById(report.reportingCenter) ?? registry.getHelpCenters()[0];
+        if (centerObj) { lat = centerObj.location.lat; lng = centerObj.location.lng; }
+      }
+    }
+
+    // Try by zone name — match help center or fallback to user location
+    if (!lat) {
+      const q = query.toLowerCase();
+      const center = registry.getHelpCenters().find(c =>
+        c.name.toLowerCase().includes(q) || c.zone.toLowerCase().includes(q)
+      );
+      if (center) { lat = center.location.lat; lng = center.location.lng; }
+    }
+
+    // Last resort — use user/desk location
+    if (!lat && userLocation) { lat = userLocation.lat; lng = userLocation.lng; }
+    if (!lat) { lat = 20.0042; lng = 73.7896; } // Ramkund default
+
+    setCenterLat(lat);
+    setCenterLng(lng);
+
+    // Find cameras within 1 km
+    const nearby = ALL_CCTV
+      .map(c => ({ ...c, distKm: haversineKm({ lat: lat ?? 0, lng: lng ?? 0 }, { lat: c.lat, lng: c.lng }) }))
+      .filter(c => c.distKm <= 1.0)
+      .sort((a, b) => a.distKm - b.distKm)
+      .slice(0, 20);
+
+    setCameras(nearby as CctvPoint[]);
+    setSearched(true);
+  }
+
+  function nearestPoliceStation(): PoliceStation | null {
+    if (!centerLat || !centerLng) return null;
+    return policeStations
+      .map(ps => ({ ...ps, d: haversineKm({ lat: centerLat, lng: centerLng }, ps.location) }))
+      .sort((a, b) => a.d - b.d)[0] ?? null;
+  }
+
+  async function notifyPolice(ps: PoliceStation) {
+    setNotifyStatus(s => ({ ...s, [ps.id]: "sending" }));
+
+    const report = refId ? registry.getMissingReportById(refId.trim().toUpperCase()) : null;
+    const desc = report
+      ? `Missing person report ${report.id}: ${report.missingPerson.ageRange} ${report.missingPerson.gender}, ${report.missingPerson.clothing}. Last seen: ${report.missingPerson.lastSeenLocation}.`
+      : `CCTV check requested for zone: ${query || "near help desk"}. ${cameras.length} cameras identified.`;
+
+    // Notify via internal notification system
+    notifyBackend.send({
+      centerId: deskId,
+      centerName: ps.name,
+      message: `🚔 POLICE NOTIFICATION from ${deskId}: ${desc} Please check CCTV cameras in the area and assist. Ref: ${refId || "—"}.`,
+      urgency: "high",
+    });
+
+    // In a real system this would call police via API; for demo, log to console
+    console.log(`[POLICE NOTIFY] → ${ps.name}: ${desc}`);
+
+    await new Promise(r => setTimeout(r, 800));
+    setNotifyStatus(s => ({ ...s, [ps.id]: "sent" }));
+  }
+
+  const nearest = nearestPoliceStation();
+  const cameraMarkers: MapMarker[] = cameras.slice(0, 20).map(c => ({
+    type: "found" as const,
+    lat: c.lat,
+    lng: c.lng,
+    label: c.id,
+    detail: c.label,
+  }));
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "auto" }}>
+      <div className="two-panel">
+        <div className="two-panel__left" style={{ padding: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: "#1e293b" }}>
+            📷 Find CCTV Cameras Near a Zone
+          </div>
+
+          {/* Search inputs */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+            <input
+              className="input"
+              value={refId}
+              onChange={e => setRefId(e.target.value)}
+              placeholder="Ref number (LP-XXXXX) — optional"
+            />
+            <input
+              className="input"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Zone or area name (e.g. Ramkund, Panchavati)"
+              onKeyDown={e => e.key === "Enter" && handleSearch()}
+            />
+            <button onClick={handleSearch} className="btn btn-primary">
+              🔍 Find Nearby Cameras
+            </button>
+          </div>
+
+          {/* Results */}
+          {searched && (
+            <>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: cameras.length > 0 ? "#15803d" : "#dc2626" }}>
+                {cameras.length > 0 ? `✅ ${cameras.length} camera(s) within 1 km` : "⚠️ No cameras found within 1 km"}
+              </div>
+
+              {cameras.slice(0, 8).map(c => (
+                <div key={c.id} className="notif-item" style={{ fontSize: 12 }}>
+                  <div className="notif-dot" style={{ background: "#7c3aed" }} />
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{c.id} — {c.label}</div>
+                    <div style={{ color: "#a8a29e" }}>{c.lat.toFixed(5)}, {c.lng.toFixed(5)}</div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Nearest police station */}
+              {nearest && (
+                <div style={{ marginTop: 16, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "#1d4ed8", marginBottom: 6 }}>
+                    👮 Nearest Police Station
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{nearest.name}</div>
+                  <div style={{ fontSize: 11, color: "#57534e", marginBottom: 10 }}>
+                    {haversineKm({ lat: centerLat ?? 0, lng: centerLng ?? 0 }, nearest.location).toFixed(2)} km away
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => notifyPolice(nearest)}
+                      disabled={notifyStatus[nearest.id] === "sent"}
+                      className="btn btn-primary btn-sm"
+                      style={{ flex: 1, background: notifyStatus[nearest.id] === "sent" ? "#16a34a" : undefined }}
+                    >
+                      {notifyStatus[nearest.id] === "sending" && "Notifying…"}
+                      {notifyStatus[nearest.id] === "sent" && "✅ Notified"}
+                      {(!notifyStatus[nearest.id] || notifyStatus[nearest.id] === "idle") && "🚔 Notify Police"}
+                    </button>
+                    <a
+                      href={`tel:100`}
+                      className="btn btn-ghost btn-sm"
+                      style={{ flex: 1, textAlign: "center", textDecoration: "none" }}
+                    >
+                      📞 Call 100
+                    </a>
+                  </div>
+
+                  {/* Also show all stations within 3 km */}
+                  {policeStations
+                    .map(ps => ({ ...ps, d: haversineKm({ lat: centerLat ?? 0, lng: centerLng ?? 0 }, ps.location) }))
+                    .filter(ps => ps.d <= 3)
+                    .sort((a, b) => a.d - b.d)
+                    .slice(1, 4)
+                    .map(ps => (
+                      <div key={ps.id} style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "#374151" }}>
+                        <span>{ps.name} ({ps.d.toFixed(1)} km)</span>
+                        <button
+                          onClick={() => notifyPolice(ps)}
+                          disabled={notifyStatus[ps.id] === "sent"}
+                          style={{ fontSize: 11, padding: "3px 8px", background: notifyStatus[ps.id] === "sent" ? "#16a34a" : "#1d4ed8", color: "white", border: "none", borderRadius: 4, cursor: "pointer" }}
+                        >
+                          {notifyStatus[ps.id] === "sent" ? "✅" : "Notify"}
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {!searched && (
+            <div style={{ color: "#a8a29e", fontSize: 13, textAlign: "center", padding: "20px 0" }}>
+              Enter a zone name or ref number and click Find to locate CCTV cameras
+            </div>
+          )}
+        </div>
+
+        {/* Map showing cameras */}
+        <div className="two-panel__right">
+          <MapView
+            userLocation={centerLat && centerLng
+              ? { lat: centerLat, lng: centerLng, source: "gps", accuracy: 10 }
+              : userLocation}
+            markers={cameraMarkers}
+            showSatellite={true}
+            height="100%"
+            zoom={15}
+          />
+        </div>
+      </div>
     </div>
   );
 }

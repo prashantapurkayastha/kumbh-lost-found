@@ -346,8 +346,10 @@ export default function VolunteerPanel() {
               {/* Active found persons */}
               <div className="card-title" style={{ marginTop: 16 }}>Currently Waiting at Centers</div>
               {registry.getAllFoundPersons().slice(0, 4).map((fp) => (
-                <div key={fp.id} className="notif-item">
-                  <div className="notif-dot" />
+                <div key={fp.id} className="notif-item" style={{ alignItems: "flex-start" }}>
+                  {fp.photoBase64
+                    ? <img src={`data:image/jpeg;base64,${fp.photoBase64}`} alt="Person" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 6, flexShrink: 0, border: "1px solid #e5e7eb", marginRight: 6 }} />
+                    : <div className="notif-dot" />}
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 13 }}>{fp.id} · {fp.ageRange} {fp.gender}</div>
                     <div style={{ fontSize: 12, color: "#57534e" }}>{fp.clothing}</div>

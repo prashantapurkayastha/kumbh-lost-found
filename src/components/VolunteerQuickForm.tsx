@@ -30,13 +30,19 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
   const [whereFound, setWhereFound] = useState("");
   const [contactNumber, setContactNumber] = useState("");
 
-  // Photo upload
+  // Photo upload — found-person / help-person mode
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoAnalyzing, setPhotoAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Photo upload — help-family mode (fills missing person fields)
+  const [missingPhotoPreview, setMissingPhotoPreview] = useState<string | null>(null);
+  const [missingPhotoAnalyzing, setMissingPhotoAnalyzing] = useState(false);
+  const missingFileInputRef = useRef<HTMLInputElement>(null);
+
   // Voice input
   const [voiceTooltip, setVoiceTooltip] = useState("");
+  const [missingVoiceTooltip, setMissingVoiceTooltip] = useState("");
 
   // Help-family mode fields
   const [reporterName, setReporterName] = useState("");
@@ -175,6 +181,81 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
     recognition.start();
   }
 
+  // ── Photo + voice for help-family (fills missing person fields) ──────────
+  async function handleMissingPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setMissingPhotoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    setMissingPhotoAnalyzing(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const mediaType = file.type as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+      const payload = {
+        max_tokens: 512,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+            { type: "text", text: 'Describe this person: approximate age range (child/teen/young adult/adult/elderly), gender, clothing color and type, any distinguishing features. Return JSON: {"ageRange":"...","gender":"...","clothing":"...","features":"..."}' },
+          ],
+        }],
+      };
+      const res = await fetch("/api/claude", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (res.ok) {
+        const data = await res.json();
+        const text: string = data?.content?.[0]?.text ?? "";
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed: VisionResult = JSON.parse(jsonMatch[0]);
+          if (parsed.ageRange) {
+            const n = parsed.ageRange.toLowerCase();
+            if (n.includes("child")) setMissingAgeRange("child (0-12)");
+            else if (n.includes("teen")) setMissingAgeRange("teen (13-17)");
+            else if (n.includes("young")) setMissingAgeRange("young adult (18-35)");
+            else if (n.includes("elderly") || n.includes("old")) setMissingAgeRange("elderly (60+)");
+            else setMissingAgeRange("adult (36-60)");
+          }
+          if (parsed.gender) {
+            const g = parsed.gender.toLowerCase();
+            if (g.includes("male") && !g.includes("female")) setMissingGender("male");
+            else if (g.includes("female")) setMissingGender("female");
+          }
+          if (parsed.clothing || parsed.features) {
+            const desc = [parsed.clothing, parsed.features].filter(Boolean).join(". ");
+            setMissingClothing((prev) => (prev ? prev + ". " + desc : desc));
+          }
+        }
+      }
+    } catch { /* silent */ } finally { setMissingPhotoAnalyzing(false); }
+  }
+
+  function handleMissingVoiceInput() {
+    type AnySR = { lang: string; interimResults: boolean; maxAlternatives: number; onresult: ((e: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => void) | null; onerror: (() => void) | null; start: () => void; };
+    type WW = Window & { SpeechRecognition?: new () => AnySR; webkitSpeechRecognition?: new () => AnySR };
+    const w = window as WW;
+    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!Ctor) {
+      setMissingVoiceTooltip("Voice not supported in this browser");
+      setTimeout(() => setMissingVoiceTooltip(""), 3000);
+      return;
+    }
+    const recognition = new Ctor();
+    recognition.lang = "hi-IN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setMissingClothing((prev) => (prev ? prev + " " + transcript : transcript));
+    };
+    recognition.onerror = () => {
+      setMissingVoiceTooltip("Could not capture voice. Please try again.");
+      setTimeout(() => setMissingVoiceTooltip(""), 3000);
+    };
+    recognition.start();
+  }
+
   // ── Validation ────────────────────────────────────────────────────────────
   function validate(): boolean {
     const errs: Record<string, string> = {};
@@ -216,6 +297,7 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
           languageSpoken: missingLanguage,
           contactNumber: reporterPhone,
           reporterName: reporterName || undefined,
+          photoBase64: missingPhotoPreview?.split(",")[1] ?? undefined,
         };
         const report = await addMissingReportSync({ ...input, reportingCenter: centerId });
         setSuccess(report.id);
@@ -230,6 +312,7 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
           languageSpoken: language,
           condition,
           photoProvided: !!photoPreview,
+          photoBase64: photoPreview?.split(",")[1] ?? undefined,
         };
         const fp = await addFoundPersonSync(input);
         setSuccess(fp.id);
@@ -298,6 +381,7 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
             setWhereFound("");
             setContactNumber("");
             setPhotoPreview(null);
+            setMissingPhotoPreview(null);
             setMissingClothing("");
             setMissingName("");
             setReporterName("");
@@ -345,6 +429,27 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
 
             <div style={{ fontWeight: 700, fontSize: 13, color: "#374151", margin: "16px 0 10px" }}>Missing Person Details</div>
 
+            {/* Photo upload for missing person */}
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Photo of Missing Person (optional — AI auto-fills description)</label>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <div>
+                  <input ref={missingFileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleMissingPhotoUpload} />
+                  <button type="button" onClick={() => missingFileInputRef.current?.click()} style={{ padding: "8px 14px", background: "#f3f4f6", border: "1.5px dashed #9ca3af", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#374151" }}>
+                    📷 Upload Photo
+                  </button>
+                  {missingPhotoAnalyzing && (
+                    <div style={{ marginTop: 6, fontSize: 12, color: "#7c3aed", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span className="spinner" style={{ width: 14, height: 14 }} /> Analyzing with AI…
+                    </div>
+                  )}
+                </div>
+                {missingPhotoPreview && (
+                  <img src={missingPhotoPreview} alt="Preview" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb" }} />
+                )}
+              </div>
+            </div>
+
             <div style={fieldStyle}>
               <label style={labelStyle}>Name (optional)</label>
               <input style={inputStyle} value={missingName} onChange={e => setMissingName(e.target.value)} placeholder="Missing person's name if known" />
@@ -367,13 +472,25 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
 
             <div style={fieldStyle}>
               <label style={labelStyle}>Clothing Description <span style={{ color: "#dc2626" }}>*</span></label>
-              <textarea
-                style={{ ...inputStyle, minHeight: 70, resize: "vertical", borderColor: errors.missingClothing ? "#dc2626" : "#d1d5db" }}
-                value={missingClothing}
-                onChange={e => setMissingClothing(e.target.value)}
-                placeholder="e.g. Blue kurta, white dhoti, orange shawl"
-              />
-              {errors.missingClothing && <div style={errStyle}>{errors.missingClothing}</div>}
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <textarea
+                    style={{ ...inputStyle, minHeight: 70, resize: "vertical", borderColor: errors.missingClothing ? "#dc2626" : "#d1d5db" }}
+                    value={missingClothing}
+                    onChange={e => setMissingClothing(e.target.value)}
+                    placeholder="e.g. Blue kurta, white dhoti, orange shawl"
+                  />
+                  {errors.missingClothing && <div style={errStyle}>{errors.missingClothing}</div>}
+                </div>
+                <div style={{ position: "relative" }}>
+                  <button type="button" onClick={handleMissingVoiceInput} title="Voice input" style={{ padding: "8px 10px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>🎤</button>
+                  {missingVoiceTooltip && (
+                    <div style={{ position: "absolute", right: 0, top: "110%", background: "#1c1917", color: "white", fontSize: 11, padding: "5px 8px", borderRadius: 5, whiteSpace: "nowrap", zIndex: 10 }}>
+                      {missingVoiceTooltip}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div style={fieldStyle}>

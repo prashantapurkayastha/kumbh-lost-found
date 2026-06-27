@@ -104,8 +104,10 @@ function MissingCard({
       </div>
 
       {/* Description — show "—" for blank fields, don't hide incomplete entries */}
-      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-        <span style={{ fontSize: 28 }}>{genderIcon(mp.gender)}</span>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "flex-start" }}>
+        {mr.photoBase64
+          ? <img src={`data:image/jpeg;base64,${mr.photoBase64}`} alt="Person" style={{ width: 52, height: 52, objectFit: "cover", borderRadius: 8, flexShrink: 0, border: "1px solid #e5e7eb" }} />
+          : <span style={{ fontSize: 28, flexShrink: 0 }}>{genderIcon(mp.gender)}</span>}
         <div>
           <div style={{ fontWeight: 700, fontSize: 14 }}>
             {mp.name || <span style={{ color: "#a8a29e" }}>—</span>} · {mp.gender || <span style={{ color: "#a8a29e" }}>—</span>} · {mp.ageRange || <span style={{ color: "#a8a29e" }}>—</span>}
@@ -198,8 +200,10 @@ function FoundCard({
         <span style={{ fontSize: 11, color: "#a8a29e" }}>{timeAgo(fp.foundAt)}</span>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-        <span style={{ fontSize: 28 }}>{genderIcon(fp.gender)}</span>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "flex-start" }}>
+        {fp.photoBase64
+          ? <img src={`data:image/jpeg;base64,${fp.photoBase64}`} alt="Person" style={{ width: 52, height: 52, objectFit: "cover", borderRadius: 8, flexShrink: 0, border: "1px solid #e5e7eb" }} />
+          : <span style={{ fontSize: 28, flexShrink: 0 }}>{genderIcon(fp.gender)}</span>}
         <div>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{fp.gender} · {fp.ageRange}</div>
           <div style={{ fontSize: 12, color: "#57534e" }}>👗 {fp.clothing}</div>

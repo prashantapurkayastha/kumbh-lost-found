@@ -57,6 +57,7 @@ export interface FoundPerson {
   condition: "calm" | "distressed" | "injured" | "non-verbal";
   physicalDescription: string;
   photoMatchConfidence: number; // 0–1, simulated
+  photoBase64?: string; // base64 JPEG/PNG for display in cards
   status: "waiting" | "reunited" | "transferred";
   is_potential_duplicate: boolean;
   expiresAt?: string; // ISO timestamp — record auto-expires after 72 hours
@@ -78,6 +79,7 @@ export interface MissingReport {
   reportedBy: string;
   contactNumber?: string;
   reportingCenter: string;
+  photoBase64?: string; // base64 photo of the missing person for display
   missingPerson: MissingPersonInfo;
   registeredAt: string;
   status: "active" | "resolved" | "duplicate_closed";
@@ -150,6 +152,7 @@ export interface RegisterMissingPersonInput {
   contactNumber?: string;
   reporterName?: string;
   additionalDetails?: string;
+  photoBase64?: string;
 }
 
 export interface RegisterFoundPersonInput {
@@ -162,6 +165,7 @@ export interface RegisterFoundPersonInput {
   languageSpoken?: string;
   condition?: "calm" | "distressed" | "injured" | "non-verbal";
   photoProvided?: boolean;
+  photoBase64?: string;
 }
 
 export interface NotifyHelpDeskInput {

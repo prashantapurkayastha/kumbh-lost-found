@@ -4,6 +4,30 @@ import "leaflet/dist/leaflet.css";
 import type { UserLocation } from "../services/location";
 import type { ReunionPoint } from "../types";
 
+// ── OSRM Route Fetcher (free, no API key, walking mode) ───────────────────────
+async function fetchOSRMRoute(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number }
+): Promise<{ coords: [number, number][]; distanceKm: number; durationMin: number } | null> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes?.[0]) return null;
+    const route = data.routes[0];
+    const coords: [number, number][] = route.geometry.coordinates.map(
+      ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
+    );
+    return {
+      coords,
+      distanceKm: Math.round(route.distance / 100) / 10,
+      durationMin: Math.round(route.duration / 60),
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Fix Leaflet default icon paths for Vite/bundlers
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -41,20 +65,38 @@ export interface MapMarker {
   detail?: string;
 }
 
+export interface RouteTarget {
+  lat: number;
+  lng: number;
+  name: string;
+}
+
+export interface CctvPoint { id: string; lat: number; lng: number; label: string; }
+export interface ChokepointData { name: string; lat: number; lng: number; }
+
 interface Props {
   userLocation?: UserLocation | null;
   markers?: MapMarker[];
   reunionPoint?: ReunionPoint | null;
+  routeTo?: RouteTarget | null;
+  cctvPoints?: CctvPoint[];
+  chokepoints?: ChokepointData[];
+  showCctv?: boolean;
+  showChokepoints?: boolean;
   height?: string | number;
   zoom?: number;
 }
 
 const RAMKUND = { lat: 20.0039, lng: 73.7894 };
 
-export default function MapView({ userLocation, markers = [], reunionPoint, height = 320, zoom = 14 }: Props) {
+export default function MapView({ userLocation, markers = [], reunionPoint, routeTo, cctvPoints = [], chokepoints = [], showCctv = false, showChokepoints = false, height = 320, zoom = 14 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
+  const routeLayerRef = useRef<L.LayerGroup | null>(null);
+  const routeInfoRef = useRef<L.Control | null>(null);
+  const cctvLayerRef = useRef<L.LayerGroup | null>(null);
+  const chokeLayerRef = useRef<L.LayerGroup | null>(null);
 
   // ── Init map once ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -80,6 +122,9 @@ export default function MapView({ userLocation, markers = [], reunionPoint, heig
 
     mapRef.current = map;
     layerRef.current = L.layerGroup().addTo(map);
+    routeLayerRef.current = L.layerGroup().addTo(map);
+    cctvLayerRef.current = L.layerGroup().addTo(map);
+    chokeLayerRef.current = L.layerGroup().addTo(map);
 
     // High-density zone circles (official no-vehicle pressure zones from dataset)
     const highDensityZones = [
@@ -105,6 +150,99 @@ export default function MapView({ userLocation, markers = [], reunionPoint, heig
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── OSRM route ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    const routeLayer = routeLayerRef.current;
+    if (!map || !routeLayer) return;
+
+    // Remove old route + info box
+    routeLayer.clearLayers();
+    if (routeInfoRef.current) {
+      routeInfoRef.current.remove();
+      routeInfoRef.current = null;
+    }
+
+    if (!routeTo || !userLocation) return;
+
+    fetchOSRMRoute(userLocation, routeTo).then((route) => {
+      if (!route) return;
+
+      // Draw route polyline
+      L.polyline(route.coords, {
+        color: "#2563eb",
+        weight: 5,
+        opacity: 0.8,
+        dashArray: undefined,
+      }).addTo(routeLayer);
+
+      // Destination marker
+      L.marker([routeTo.lat, routeTo.lng], { icon: ICONS.center, zIndexOffset: 500 })
+        .bindPopup(`<strong>${routeTo.name}</strong><br/>🚶 ${route.durationMin} min · ${route.distanceKm} km`)
+        .addTo(routeLayer)
+        .openPopup();
+
+      // Fit map to route
+      map.fitBounds(L.latLngBounds(route.coords), { padding: [40, 60] });
+
+      // Route info control (bottom-left pill)
+      const InfoControl = L.Control.extend({
+        options: { position: "bottomleft" },
+        onAdd() {
+          const div = L.DomUtil.create("div");
+          div.innerHTML = `
+            <div style="background:white;border-radius:12px;padding:8px 14px;box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:13px;font-family:sans-serif;display:flex;gap:12px;align-items:center;">
+              <span>🚶 <strong>${route.durationMin} min</strong></span>
+              <span style="color:#78716c">${route.distanceKm} km walking</span>
+              <span style="color:#16a34a;font-weight:600">→ ${routeTo.name.slice(0, 22)}${routeTo.name.length > 22 ? "…" : ""}</span>
+            </div>`;
+          return div;
+        },
+      });
+      routeInfoRef.current = new InfoControl();
+      routeInfoRef.current.addTo(map);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeTo, userLocation]);
+
+  // ── CCTV layer ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const layer = cctvLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (!showCctv) return;
+    const cctvIcon = L.divIcon({
+      html: `<div style="background:#7c3aed;width:8px;height:8px;border-radius:50%;border:1px solid white;opacity:0.8;"></div>`,
+      className: "",
+      iconSize: [8, 8],
+      iconAnchor: [4, 4],
+    });
+    cctvPoints.forEach((cam) => {
+      L.marker([cam.lat, cam.lng], { icon: cctvIcon })
+        .bindPopup(`📹 ${cam.label}`)
+        .addTo(layer);
+    });
+  }, [showCctv, cctvPoints]);
+
+  // ── Chokepoints layer ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const layer = chokeLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (!showChokepoints) return;
+    chokepoints.forEach((cp) => {
+      L.circle([cp.lat, cp.lng], {
+        radius: 120,
+        color: "#f97316",
+        fillColor: "#f9731630",
+        fillOpacity: 0.4,
+        weight: 2,
+      })
+        .bindPopup(`⚠️ Chokepoint: <strong>${cp.name}</strong>`)
+        .addTo(layer);
+    });
+  }, [showChokepoints, chokepoints]);
 
   // ── Update markers ─────────────────────────────────────────────────────────
   useEffect(() => {

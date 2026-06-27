@@ -7,6 +7,7 @@ import { getUserLocation, getNearestCenters, type UserLocation, type NearbyCente
 import { sendSMS, buildFoundPersonRegisteredSMS, buildMatchFoundSMS } from "../services/sms";
 import { notifyBackend } from "../core/backends/notify";
 import { registry } from "../core/backends/registry";
+import { registerVolunteer, removeVolunteer } from "../services/volunteers";
 import { useOnline } from "../hooks/useOnline";
 import type { AgentResult } from "../core/agent";
 import type { Notification } from "../types";
@@ -15,10 +16,64 @@ import type { Notification } from "../types";
 type Tab = "dashboard" | "help-report" | "found-person" | "notifications";
 type HelpMode = "help-family" | "help-person"; // who the volunteer is helping
 
+// ── Dummy auth ────────────────────────────────────────────────────────────────
+const VOLUNTEER_CREDS = { username: "volunteer", password: "kumbh2027" };
+
+function VolunteerLogin({ onLogin }: { onLogin: () => void }) {
+  const navigate = useNavigate();
+  const [u, setU] = useState("");
+  const [p, setP] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      if (u === VOLUNTEER_CREDS.username && p === VOLUNTEER_CREDS.password) {
+        onLogin();
+      } else {
+        setError("Invalid credentials. Try volunteer / kumbh2027");
+      }
+      setLoading(false);
+    }, 600);
+  }
+
+  return (
+    <div className="page" style={{ background: "#f0fdf4", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ maxWidth: 360, margin: "0 auto", padding: "0 20px", width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 48 }}>🙋</div>
+          <h1 style={{ fontWeight: 700, fontSize: 22, color: "#15803d", marginTop: 8 }}>Volunteer Login</h1>
+          <p style={{ fontSize: 13, color: "#57534e", marginTop: 4 }}>Kumbh Mela 2027 — Lost & Found</p>
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label className="input-label">Username</label>
+            <input className="input" value={u} onChange={e => setU(e.target.value)} placeholder="volunteer" autoComplete="username" />
+          </div>
+          <div>
+            <label className="input-label">Password</label>
+            <input className="input" type="password" value={p} onChange={e => setP(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+          </div>
+          {error && <p style={{ fontSize: 13, color: "#dc2626", textAlign: "center" }}>{error}</p>}
+          <button type="submit" className="btn btn-primary btn-full" disabled={loading} style={{ background: "#16a34a", borderColor: "#16a34a" }}>
+            {loading ? <span className="spinner" /> : "Login →"}
+          </button>
+          <button type="button" onClick={() => navigate("/")} className="btn btn-ghost btn-full" style={{ fontSize: 13 }}>
+            ← Back to Public App
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function VolunteerPanel() {
   const navigate = useNavigate();
   const isOnline = useOnline();
 
+  const [loggedIn, setLoggedIn] = useState(false);
   const [tab, setTab] = useState<Tab>("dashboard");
   const [helpMode, setHelpMode] = useState<HelpMode>("help-family");
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -29,7 +84,9 @@ export default function VolunteerPanel() {
   const [contactNumber, setContactNumber] = useState("");
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
   const [refNumber, setRefNumber] = useState<string | null>(null);
+  const [locationShared, setLocationShared] = useState(false);
   const notifIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const volId = useRef(`VOL-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
 
   const stats = registry.getStats();
   const centers = registry.getHelpCenters();
@@ -39,6 +96,21 @@ export default function VolunteerPanel() {
     getUserLocation().then((loc) => {
       setUserLocation(loc);
       setNearbyDesks(getNearestCenters(loc, 5));
+
+      // Register this volunteer's location so the public app can show them
+      if (loc.source !== "default") {
+        const center = registry.getCenterById(centerId);
+        registerVolunteer({
+          id: volId.current,
+          name: "Volunteer",
+          centerId,
+          centerName: center?.name ?? "Unknown Center",
+          lat: loc.lat,
+          lng: loc.lng,
+          lastSeen: Date.now(),
+        });
+        setLocationShared(true);
+      }
 
       // Build markers
       const ms: MapMarker[] = registry.getHelpCenters().map((c) => ({
@@ -75,6 +147,7 @@ export default function VolunteerPanel() {
 
     return () => {
       if (notifIntervalRef.current) clearInterval(notifIntervalRef.current);
+      removeVolunteer(volId.current);
     };
   }, []);
 
@@ -138,6 +211,8 @@ export default function VolunteerPanel() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  if (!loggedIn) return <VolunteerLogin onLogin={() => setLoggedIn(true)} />;
 
   return (
     <div className="page">
@@ -252,8 +327,14 @@ export default function VolunteerPanel() {
 
               {/* Location */}
               {userLocation && (
-                <div className="badge badge-blue" style={{ marginBottom: 12 }}>
-                  📍 Location: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)} ({userLocation.source})
+                <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                  <div className="badge badge-blue">
+                    📍 {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)} ({userLocation.source})
+                  </div>
+                  {locationShared
+                    ? <div className="badge badge-green">📡 Location shared with public app</div>
+                    : <div className="badge" style={{ background: "#fef9c3", color: "#854d0e" }}>⚠️ Default location — GPS not active</div>
+                  }
                 </div>
               )}
 

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import MapView, { type MapMarker } from "../components/MapView";
+import MapView, { type MapMarker, type RouteTarget, type CctvPoint, type ChokepointData } from "../components/MapView";
+import cctvData from "../data/cctv.json";
+import chokepointData from "../data/chokepoints.json";
 import ChatAgent from "../components/ChatAgent";
 import LanguageSelector from "../components/LanguageSelector";
 import NearbyDesks from "../components/NearbyDesks";
@@ -8,6 +10,10 @@ import { getUserLocation, getNearestCenters, type UserLocation, type NearbyCente
 import { sendSMS, buildCaseRegisteredSMS, buildSOSAlertSMS } from "../services/sms";
 import { registry } from "../core/backends/registry";
 import { useOnline } from "../hooks/useOnline";
+import { t } from "../i18n/translations";
+import { getActiveVolunteers, type VolunteerRecord } from "../services/volunteers";
+import { registry as regBackend } from "../core/backends/registry";
+import { haversineKm, walkingMinutes } from "../core/backends/geo";
 import type { AgentResult } from "../core/agent";
 import type { ReunionPoint } from "../types";
 
@@ -37,21 +43,46 @@ export default function PublicApp() {
   const [sosLoading, setSosLoading] = useState(false);
   const [sosSent, setSosSent] = useState(false);
   const [markers, setMarkers] = useState<MapMarker[]>([]);
+  const [routeTo, setRouteTo] = useState<RouteTarget | null>(null);
+  const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null);
+  const [showCctv, setShowCctv] = useState(false);
+  const [showChokepoints, setShowChokepoints] = useState(false);
+  const [nearbyVolunteers, setNearbyVolunteers] = useState<VolunteerRecord[]>([]);
+  const [nearbyPolice, setNearbyPolice] = useState<{ name: string; distKm: number; walkMin: number }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const stats = registry.getStats();
+  const cctv = cctvData as CctvPoint[];
+  const choke = chokepointData as ChokepointData[];
 
-  // ── Fetch location on mount ────────────────────────────────────────────────
+  // ── Fetch location on mount + build derived data ──────────────────────────
   useEffect(() => {
     setLocationLoading(true);
     getUserLocation().then((loc) => {
       setUserLocation(loc);
       setNearbyDesks(getNearestCenters(loc, 5));
       setLocationLoading(false);
+
+      // Nearest police stations
+      const policeStations = regBackend.getPoliceStations();
+      const sortedPolice = policeStations
+        .map((ps) => {
+          const d = haversineKm(loc, ps.location);
+          return { name: ps.name, distKm: Math.round(d * 100) / 100, walkMin: walkingMinutes(d) };
+        })
+        .sort((a, b) => a.distKm - b.distKm)
+        .slice(0, 2);
+      setNearbyPolice(sortedPolice);
+
+      // Active volunteers sorted by distance
+      const vols = getActiveVolunteers()
+        .map((v) => ({ ...v, _dist: haversineKm(loc, { lat: v.lat, lng: v.lng }) }))
+        .sort((a, b) => a._dist - b._dist)
+        .slice(0, 4);
+      setNearbyVolunteers(vols);
     });
   }, []);
 
-  // ── Build map markers from help centers ────────────────────────────────────
+  // ── Build map markers ─────────────────────────────────────────────────────
   useEffect(() => {
     const centers = registry.getHelpCenters();
     const ms: MapMarker[] = centers.map((c) => ({
@@ -61,17 +92,15 @@ export default function PublicApp() {
       label: c.name,
       detail: `${c.languages.join(", ")} · Load: ${c.currentLoad}/${c.capacity}`,
     }));
-    const police = registry.getPoliceStations();
-    police.forEach((ps) => {
-      ms.push({
-        type: "police",
-        lat: ps.location.lat,
-        lng: ps.location.lng,
-        label: ps.name,
-      });
+    registry.getPoliceStations().forEach((ps) => {
+      ms.push({ type: "police", lat: ps.location.lat, lng: ps.location.lng, label: ps.name });
+    });
+    // Active volunteers
+    getActiveVolunteers().forEach((v) => {
+      ms.push({ type: "volunteer", lat: v.lat, lng: v.lng, label: `🙋 ${v.name}`, detail: v.centerName });
     });
     setMarkers(ms);
-  }, []);
+  }, [nearbyVolunteers]); // re-run when volunteers update
 
   // ── Photo upload ───────────────────────────────────────────────────────────
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -195,35 +224,78 @@ export default function PublicApp() {
         {/* Header */}
         <div className="page-header" style={{ justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "#f97316" }}>🕉 Kumbh Mela 2027</div>
-            <div style={{ fontSize: 11, color: "#78716c" }}>Lost & Found · Reunification</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#f97316" }}>🕉 {t("title", lang)}</div>
+            <div style={{ fontSize: 11, color: "#78716c" }}>{t("subtitle", lang)}</div>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <LanguageSelector value={lang} onChange={setLang} compact />
             <button
               onClick={() => navigate("/volunteer")}
-              style={{ fontSize: 11, color: "#78716c", padding: "4px 8px", border: "1px solid #e7e5e4", borderRadius: 6 }}
+              style={{ fontSize: 11, color: "#78716c", padding: "4px 8px", border: "1px solid #e7e5e4", borderRadius: 6, whiteSpace: "nowrap" }}
             >
-              Volunteer →
+              {t("volunteer", lang)}
+            </button>
+            <button
+              onClick={() => navigate("/help-desk")}
+              style={{ fontSize: 11, color: "#1d4ed8", padding: "4px 8px", border: "1px solid #bfdbfe", borderRadius: 6, background: "#eff6ff", whiteSpace: "nowrap" }}
+            >
+              {t("helpDesk", lang)}
             </button>
           </div>
         </div>
 
-        {/* Map */}
+        {/* Map — shows route when a center is selected */}
         <div style={{ position: "relative" }}>
           <MapView
             userLocation={userLocation}
             markers={markers}
+            routeTo={routeTo}
+            cctvPoints={cctv}
+            chokepoints={choke}
+            showCctv={showCctv}
+            showChokepoints={showChokepoints}
             height={260}
             zoom={13}
           />
+          {/* Layer toggles */}
+          <div style={{
+            position: "absolute", bottom: 8, right: 8, zIndex: 999,
+            display: "flex", gap: 4, flexDirection: "column",
+          }}>
+            <button
+              onClick={() => setShowCctv(v => !v)}
+              style={{
+                fontSize: 10, padding: "3px 7px", borderRadius: 10,
+                background: showCctv ? "#7c3aed" : "white",
+                color: showCctv ? "white" : "#57534e",
+                border: "1px solid #d4d0cb",
+                boxShadow: "0 1px 4px rgba(0,0,0,.2)",
+                cursor: "pointer",
+              }}
+            >
+              📹 {showCctv ? "CCTV ON" : "CCTV"}
+            </button>
+            <button
+              onClick={() => setShowChokepoints(v => !v)}
+              style={{
+                fontSize: 10, padding: "3px 7px", borderRadius: 10,
+                background: showChokepoints ? "#f97316" : "white",
+                color: showChokepoints ? "white" : "#57534e",
+                border: "1px solid #d4d0cb",
+                boxShadow: "0 1px 4px rgba(0,0,0,.2)",
+                cursor: "pointer",
+              }}
+            >
+              ⚠️ {showChokepoints ? "Zones ON" : "Zones"}
+            </button>
+          </div>
           {locationLoading && (
             <div style={{
               position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
               background: "white", borderRadius: 20, padding: "4px 12px",
               fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,.15)",
             }}>
-              📍 Getting your location…
+              {t("gettingLocation", lang)}
             </div>
           )}
         </div>
@@ -232,16 +304,16 @@ export default function PublicApp() {
           {/* Stats */}
           <div className="stats-row" style={{ marginTop: 16 }}>
             <div className="stat-box">
-              <div className="stat-value">{stats.foundPersonsWaiting}</div>
-              <div className="stat-label">Found today</div>
-            </div>
-            <div className="stat-box">
-              <div className="stat-value">{stats.reunionsCompleted}</div>
-              <div className="stat-label">Reunited</div>
-            </div>
-            <div className="stat-box">
               <div className="stat-value">{registry.getHelpCenters().length}</div>
-              <div className="stat-label">Help centers</div>
+              <div className="stat-label">{t("helpCenters", lang)}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-value">{registry.getPoliceStations().length}</div>
+              <div className="stat-label">{t("policeStations", lang)}</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-value">24/7</div>
+              <div className="stat-label">{t("support", lang)}</div>
             </div>
           </div>
 
@@ -268,11 +340,11 @@ export default function PublicApp() {
                 aria-label="SOS — I need help"
                 style={{ width: 96, height: 96, fontSize: 13 }}
               >
-                {sosLoading ? <span className="spinner" /> : "🆘 SOS"}
+                {sosLoading ? <span className="spinner" /> : t("sosBtn", lang)}
               </button>
             )}
             <p style={{ fontSize: 12, color: "#78716c", textAlign: "center" }}>
-              {sosSent ? "Going to chat…" : "Press for immediate help"}
+              {sosSent ? t("sosChatMsg", lang) : t("sosHint", lang)}
             </p>
           </div>
 
@@ -289,9 +361,9 @@ export default function PublicApp() {
             >
               <span style={{ fontSize: 22 }}>🔍</span>
               <div style={{ textAlign: "left" }}>
-                <div>I'm looking for someone</div>
+                <div>{t("lookingForSomeone", lang)}</div>
                 <div style={{ fontSize: 12, fontWeight: 400, opacity: .85 }}>
-                  मैं किसी को ढूंढ रहा हूँ
+                  {t("lookingSubtext", lang)}
                 </div>
               </div>
             </button>
@@ -306,18 +378,89 @@ export default function PublicApp() {
             >
               <span style={{ fontSize: 22 }}>🙋</span>
               <div style={{ textAlign: "left" }}>
-                <div>I am lost</div>
+                <div>{t("iAmLost", lang)}</div>
                 <div style={{ fontSize: 12, fontWeight: 400, opacity: .85 }}>
-                  मैं खो गया हूँ / मी हरवलो आहे
+                  {t("iAmLostSubtext", lang)}
                 </div>
               </div>
             </button>
           </div>
 
-          {/* Nearby desks */}
-          <div className="card" style={{ marginTop: 20 }}>
-            <div className="card-title">📍 Nearest Help Centers</div>
-            <NearbyDesks centers={nearbyDesks.slice(0, 3)} />
+          {/* Safety Quick-Access — Police + CCTV */}
+          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+            <div className="card" style={{ flex: 1, margin: 0, borderColor: "#1d4ed8" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", marginBottom: 6 }}>👮 Nearest Police</div>
+              {nearbyPolice.length > 0 ? (
+                nearbyPolice.slice(0, 1).map((ps) => (
+                  <div key={ps.name}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#1e293b" }}>{ps.name}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>🚶 {ps.walkMin} min · {ps.distKm} km</div>
+                    <a href="tel:100" style={{ fontSize: 12, color: "#1d4ed8", fontWeight: 700 }}>📞 Dial 100</a>
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>Locating…</div>
+              )}
+            </div>
+            <div className="card" style={{ flex: 1, margin: 0, borderColor: "#7c3aed" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", marginBottom: 6 }}>📹 CCTV Coverage</div>
+              <div style={{ fontSize: 12, color: "#1e293b" }}>{cctv.length} cameras</div>
+              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>Active monitoring</div>
+              <button
+                onClick={() => { setShowCctv(v => !v); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                style={{ fontSize: 11, color: "#7c3aed", background: "none", border: "1px solid #7c3aed", borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}
+              >
+                {showCctv ? "Hide on map" : "Show on map →"}
+              </button>
+            </div>
+          </div>
+
+          {/* Nearest Volunteers */}
+          {nearbyVolunteers.length > 0 && (
+            <div className="card" style={{ marginTop: 12 }}>
+              <div className="card-title">🙋 Nearest Volunteers ({nearbyVolunteers.length} active)</div>
+              {nearbyVolunteers.slice(0, 3).map((v) => {
+                const dist = userLocation ? haversineKm(userLocation, { lat: v.lat, lng: v.lng }) : 0;
+                return (
+                  <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f1f0ef" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{v.name}</div>
+                      <div style={{ fontSize: 11, color: "#78716c" }}>{v.centerName}</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>🟢 Active</div>
+                      <div style={{ fontSize: 11, color: "#78716c" }}>🚶 {walkingMinutes(dist)} min</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Nearby desks — tap to show route on map above */}
+          <div className="card" style={{ marginTop: 12 }}>
+            <div className="card-title">{t("nearestCenters", lang)}</div>
+            {routeTo && (
+              <div style={{ fontSize: 12, color: "#2563eb", marginBottom: 8 }}>
+                🗺 Showing route to <strong>{routeTo.name}</strong> — scroll up to see map
+                <button
+                  onClick={() => { setRouteTo(null); setSelectedDeskId(null); }}
+                  style={{ marginLeft: 8, fontSize: 11, color: "#dc2626", background: "none", border: "none", cursor: "pointer" }}
+                >
+                  ✕ Clear
+                </button>
+              </div>
+            )}
+            <NearbyDesks
+              centers={nearbyDesks.slice(0, 3)}
+              userLocation={userLocation}
+              selectedId={selectedDeskId}
+              onSelect={(c) => {
+                setRouteTo({ lat: c.location.lat, lng: c.location.lng, name: c.name });
+                setSelectedDeskId(c.id);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            />
           </div>
         </div>
       </div>
@@ -331,20 +474,16 @@ export default function PublicApp() {
         <div className="page-header">
           <button onClick={() => setScreen("landing")} style={{ fontSize: 20, background: "none" }}>←</button>
           <div>
-            <div style={{ fontWeight: 700 }}>I Am Lost / मैं खो गया हूँ</div>
-            <div style={{ fontSize: 11, color: "#78716c" }}>We will find your family</div>
+            <div style={{ fontWeight: 700 }}>{t("iAmLostTitle", lang)}</div>
+            <div style={{ fontSize: 11, color: "#78716c" }}>{t("weWillFind", lang)}</div>
           </div>
           <LanguageSelector value={lang} onChange={setLang} compact />
         </div>
 
         <div className="page-body">
           <div className="card">
-            <p style={{ fontSize: 14, color: "#57534e", marginBottom: 16, lineHeight: 1.6 }}>
-              Don't worry. Tell us about yourself and we will find your family or bring you to the nearest help center.
-            </p>
-
             <div className="form-row">
-              <label className="input-label">📱 Your mobile number (optional)</label>
+              <label className="input-label">{t("phoneOptional", lang)}</label>
               <input
                 type="tel"
                 value={contactNumber}
@@ -353,13 +492,13 @@ export default function PublicApp() {
                 className="input"
               />
               <p style={{ fontSize: 11, color: "#a8a29e", marginTop: 4 }}>
-                We'll send you updates and help you reconnect
+                {t("phoneSub", lang)}
               </p>
             </div>
 
             {userLocation && (
               <div className="badge badge-green" style={{ marginBottom: 12, display: "inline-flex" }}>
-                📍 Location captured ({userLocation.source})
+                {t("locationCaptured", lang)} ({userLocation.source})
               </div>
             )}
 
@@ -369,18 +508,18 @@ export default function PublicApp() {
               onClick={() => setScreen("chat")}
               className="btn btn-primary btn-full mt-16"
             >
-              Start → Tell us about yourself
+              {t("startIAmLost", lang)}
             </button>
           </div>
 
           {nearbyDesks.length > 0 && (
             <div className="card" style={{ marginTop: 12 }}>
-              <div className="card-title">🏥 Nearest center</div>
+              <div className="card-title">{t("nearestCenter", lang)}</div>
               <div className="desk-item" style={{ marginBottom: 0 }}>
                 <div className="desk-icon">🏥</div>
                 <div>
                   <div className="desk-name">{nearbyDesks[0].name}</div>
-                  <div className="desk-meta">🚶 {nearbyDesks[0].walkingMinutes} min walk</div>
+                  <div className="desk-meta">🚶 {nearbyDesks[0].walkingMinutes} min</div>
                   <a href={`tel:${nearbyDesks[0].contactNumber}`} style={{ fontSize: 13, color: "#2563eb" }}>
                     📞 {nearbyDesks[0].contactNumber}
                   </a>
@@ -400,8 +539,8 @@ export default function PublicApp() {
         <div className="page-header">
           <button onClick={() => setScreen("landing")} style={{ fontSize: 20, background: "none" }}>←</button>
           <div>
-            <div style={{ fontWeight: 700 }}>Report Missing Person</div>
-            <div style={{ fontSize: 11, color: "#78716c" }}>गुमशुदा व्यक्ति की रिपोर्ट</div>
+            <div style={{ fontWeight: 700 }}>{t("reportMissingTitle", lang)}</div>
+            <div style={{ fontSize: 11, color: "#78716c" }}>{t("reportMissingSubtitle", lang)}</div>
           </div>
           <LanguageSelector value={lang} onChange={setLang} compact />
         </div>
@@ -409,7 +548,7 @@ export default function PublicApp() {
         <div className="page-body">
           <div className="card">
             <div className="form-row">
-              <label className="input-label">📱 Your mobile number</label>
+              <label className="input-label">{t("phoneRequired", lang)}</label>
               <input
                 type="tel"
                 value={contactNumber}
@@ -420,7 +559,7 @@ export default function PublicApp() {
             </div>
 
             <div className="form-row">
-              <label className="input-label">📷 Photo of missing person (optional but helps)</label>
+              <label className="input-label">{t("photoLabel", lang)}</label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -448,9 +587,9 @@ export default function PublicApp() {
               ) : (
                 <div className="photo-upload-box" onClick={() => fileInputRef.current?.click()}>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>📷</div>
-                  <p style={{ fontSize: 13 }}>Tap to upload or take photo</p>
+                  <p style={{ fontSize: 13 }}>{t("tapToUpload", lang)}</p>
                   <p style={{ fontSize: 11, color: "#a8a29e", marginTop: 4 }}>
-                    Photo helps find them 3× faster
+                    {t("photoHelps", lang)}
                   </p>
                 </div>
               )}
@@ -462,7 +601,7 @@ export default function PublicApp() {
               onClick={() => setScreen("chat")}
               className="btn btn-primary btn-full mt-16"
             >
-              Start → Describe the missing person
+              {t("startReport", lang)}
             </button>
           </div>
         </div>
@@ -481,7 +620,7 @@ export default function PublicApp() {
             <div style={{ fontWeight: 700 }}>
               {flowType === "i-am-lost" ? "🙋 I Am Lost" : "🔍 Find My Family Member"}
             </div>
-            <div style={{ fontSize: 11, color: "#78716c" }}>Claude is searching all 10 centers</div>
+            <div style={{ fontSize: 11, color: "#78716c" }}>{t("searchingCenters", lang)}</div>
           </div>
           <LanguageSelector value={lang} onChange={setLang} compact />
         </div>
@@ -493,8 +632,8 @@ export default function PublicApp() {
           onResult={handleAgentResult}
           placeholder={
             flowType === "i-am-lost"
-              ? "Tell us: your name, where you came from, what you're wearing…"
-              : "Describe the missing person: name, age, clothing, last seen where…"
+              ? t("chatPlaceholderLost", lang)
+              : t("chatPlaceholderMissing", lang)
           }
           showVoice
         />
@@ -511,7 +650,7 @@ export default function PublicApp() {
         <div className="page-header">
           <button onClick={() => setScreen("landing")} style={{ fontSize: 20, background: "none" }}>←</button>
           <div style={{ fontWeight: 700 }}>
-            {hasMatch ? "✅ Match Found!" : "📋 Report Registered"}
+            {hasMatch ? t("matchFound", lang) : t("caseRegistered", lang)}
           </div>
         </div>
 
@@ -527,12 +666,12 @@ export default function PublicApp() {
           {/* Reference number */}
           {refNumber && (
             <div className="result-box" style={{ marginTop: 16 }}>
-              <h2>{hasMatch ? "🎉 Match Found!" : "📋 Case Registered"}</h2>
-              <p style={{ fontSize: 13, color: "#57534e", marginBottom: 8 }}>Your reference number:</p>
+              <h2>{hasMatch ? t("matchFound", lang) : t("caseRegistered", lang)}</h2>
+              <p style={{ fontSize: 13, color: "#57534e", marginBottom: 8 }}>{t("refNumberLabel", lang)}</p>
               <div className="ref-number">{refNumber}</div>
               {contactNumber && (
                 <p style={{ fontSize: 12, color: "#57534e" }}>
-                  ✅ SMS sent to {contactNumber}
+                  {t("smsSent", lang)} {contactNumber}
                 </p>
               )}
             </div>
@@ -541,7 +680,7 @@ export default function PublicApp() {
           {/* Claude's response */}
           {agentResult?.finalText && (
             <div className="card" style={{ marginTop: 12 }}>
-              <div className="card-title">📢 Instructions</div>
+              <div className="card-title">{t("instructions", lang)}</div>
               <p style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
                 {agentResult.finalText}
               </p>
@@ -564,8 +703,8 @@ export default function PublicApp() {
 
           {/* Nearby desks */}
           <div className="card" style={{ marginTop: 12 }}>
-            <div className="card-title">🏥 Nearest Help Centers</div>
-            <NearbyDesks centers={nearbyDesks.slice(0, 3)} />
+            <div className="card-title">{t("nearestCenters", lang)}</div>
+            <NearbyDesks centers={nearbyDesks.slice(0, 3)} userLocation={userLocation} />
           </div>
 
           {/* Action buttons */}
@@ -578,10 +717,10 @@ export default function PublicApp() {
               }}
               className="btn btn-ghost flex-1"
             >
-              ← Chat again
+              {t("chatAgain", lang)}
             </button>
             <button onClick={() => setScreen("landing")} className="btn btn-primary flex-1">
-              🏠 Home
+              {t("home", lang)}
             </button>
           </div>
         </div>

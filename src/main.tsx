@@ -2,10 +2,12 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { seedRegistry } from "./data/seed";
 import { startQueueSync, type QueuedOperation } from "./services/offlineQueue";
+import { seedDemoVolunteers } from "./services/volunteers";
 import App from "./App";
 
 // ── Seed the in-memory registry ───────────────────────────────────────────────
 seedRegistry();
+seedDemoVolunteers();
 
 // ── Start offline queue sync ──────────────────────────────────────────────────
 startQueueSync(async (op: QueuedOperation) => {

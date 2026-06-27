@@ -16,13 +16,67 @@ import type { Notification } from "../types";
 // Covers flows 3 (family at desk) and 6 (missing person at desk)
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Tab = "queue" | "register-found" | "search" | "notifications";
+type Tab = "queue" | "register-found" | "search" | "notifications" | "psa";
 type Scenario = "family-reports" | "person-self-reports";
+
+// ── Dummy auth ────────────────────────────────────────────────────────────────
+const DESK_CREDS = { username: "helpdesk", password: "kumbh2027" };
+
+function HelpDeskLogin({ onLogin }: { onLogin: () => void }) {
+  const navigate = useNavigate();
+  const [u, setU] = useState("");
+  const [p, setP] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      if (u === DESK_CREDS.username && p === DESK_CREDS.password) {
+        onLogin();
+      } else {
+        setError("Invalid credentials. Try helpdesk / kumbh2027");
+      }
+      setLoading(false);
+    }, 600);
+  }
+
+  return (
+    <div className="page" style={{ background: "#eff6ff", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ maxWidth: 360, margin: "0 auto", padding: "0 20px", width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 48 }}>🏥</div>
+          <h1 style={{ fontWeight: 700, fontSize: 22, color: "#1d4ed8", marginTop: 8 }}>Help Desk Login</h1>
+          <p style={{ fontSize: 13, color: "#57534e", marginTop: 4 }}>Kumbh Mela 2027 — Lost & Found</p>
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label className="input-label">Username</label>
+            <input className="input" value={u} onChange={e => setU(e.target.value)} placeholder="helpdesk" autoComplete="username" />
+          </div>
+          <div>
+            <label className="input-label">Password</label>
+            <input className="input" type="password" value={p} onChange={e => setP(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+          </div>
+          {error && <p style={{ fontSize: 13, color: "#dc2626", textAlign: "center" }}>{error}</p>}
+          <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
+            {loading ? <span className="spinner" /> : "Login →"}
+          </button>
+          <button type="button" onClick={() => navigate("/")} className="btn btn-ghost btn-full" style={{ fontSize: 13 }}>
+            ← Back to Public App
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 export default function HelpDeskPanel() {
   const navigate = useNavigate();
   const isOnline = useOnline();
 
+  const [loggedIn, setLoggedIn] = useState(false);
   const [tab, setTab] = useState<Tab>("queue");
   const [scenario, setScenario] = useState<Scenario>("family-reports");
   const [deskId, setDeskId] = useState("CENTER-RAMKUND");
@@ -105,6 +159,8 @@ export default function HelpDeskPanel() {
     );
   }
 
+  if (!loggedIn) return <HelpDeskLogin onLogin={() => setLoggedIn(true)} />;
+
   return (
     <div className="page">
       {!isOnline && <div className="offline-banner">⚠️ Offline — operations queued</div>}
@@ -141,11 +197,12 @@ export default function HelpDeskPanel() {
 
       {/* Tabs */}
       <div className="tab-nav">
-        {(["queue", "register-found", "search", "notifications"] as Tab[]).map((t) => (
+        {(["queue", "register-found", "search", "notifications", "psa"] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`tab-btn${tab === t ? " active" : ""}`}>
             {t === "queue" && "📋 Queue"}
             {t === "register-found" && "👤 Register"}
             {t === "search" && "🔍 Search"}
+            {t === "psa" && "📢 PSA"}
             {t === "notifications" && (
               <>🔔{unread > 0 && <span style={{ background: "#dc2626", color: "white", borderRadius: 10, padding: "1px 6px", fontSize: 10, marginLeft: 4 }}>{unread}</span>}</>
             )}
@@ -340,6 +397,178 @@ export default function HelpDeskPanel() {
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* PSA — Public Service Announcement broadcaster */}
+      {tab === "psa" && <PSABroadcaster />}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PSA Broadcaster — uses Web Speech API (no API key, built into Chrome/Safari)
+// ─────────────────────────────────────────────────────────────────────────────
+const PSA_LANGUAGES = [
+  { code: "mr-IN", label: "मराठी" },
+  { code: "hi-IN", label: "हिन्दी" },
+  { code: "en-IN", label: "English" },
+  { code: "gu-IN", label: "ગુજરાતી" },
+  { code: "bn-IN", label: "বাংলা" },
+  { code: "te-IN", label: "తెలుగు" },
+  { code: "ta-IN", label: "தமிழ்" },
+];
+
+const PSA_TEMPLATES: Record<string, Record<string, string>> = {
+  "hi-IN": {
+    missing_child: "ध्यान दें! कुंभ मेला प्रशासन की सूचना — एक बच्चा खो गया है। कृपया निकटतम सहायता केंद्र पर जाएं या 100 नंबर पर कॉल करें।",
+    missing_elder: "ध्यान दें! एक बुजुर्ग व्यक्ति अपने परिवार से बिछड़ गए हैं। यदि आपने किसी असहाय बुजुर्ग को देखा हो तो कृपया उन्हें निकटतम खो-या-पाया केंद्र तक पहुंचाएं।",
+    general: "कुंभ मेला 2027 — यदि आप अपने परिवार से बिछड़ गए हैं, तो घबराएं नहीं। नजदीकी हरे रंग के सहायता केंद्र पर जाएं। Claude AI आपकी मदद करेगा।",
+  },
+  "mr-IN": {
+    missing_child: "लक्ष द्या! कुंभमेळा प्रशासनाची सूचना — एक मुल हरवले आहे. कृपया जवळच्या मदत केंद्रावर जा किंवा 100 वर फोन करा.",
+    missing_elder: "लक्ष द्या! एक वृद्ध व्यक्ती आपल्या कुटुंबापासून वेगळे झाले आहेत. कृपया त्यांना जवळच्या हरवले-सापडले केंद्रावर घेऊन जा.",
+    general: "कुंभमेळा 2027 — जर तुम्ही तुमच्या कुटुंबापासून वेगळे झाला असाल तर घाबरू नका. जवळच्या मदत केंद्रावर जा. Claude AI तुम्हाला मदत करेल.",
+  },
+  "en-IN": {
+    missing_child: "Attention! Kumbh Mela Administration announcement — a child is missing. Please go to the nearest help center or call 100.",
+    missing_elder: "Attention! An elderly person has been separated from their family. If you see an unaccompanied elderly person, please escort them to the nearest Kho-Ya-Paya center.",
+    general: "Kumbh Mela 2027 — If you are separated from your family, do not panic. Go to the nearest green help center. Claude AI will assist you.",
+  },
+};
+
+function PSABroadcaster() {
+  const [psaLang, setPsaLang] = useState("hi-IN");
+  const [psaText, setPsaText] = useState("");
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [repeat, setRepeat] = useState(3);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const ttsSupported = typeof window !== "undefined" && "speechSynthesis" in window;
+
+  function loadTemplate(key: string) {
+    const templates = PSA_TEMPLATES[psaLang] ?? PSA_TEMPLATES["hi-IN"];
+    setPsaText(templates[key] ?? "");
+  }
+
+  function broadcast() {
+    if (!ttsSupported || !psaText.trim()) return;
+    window.speechSynthesis.cancel();
+    setIsSpeaking(true);
+    setStatus(`Broadcasting ${repeat}× in ${PSA_LANGUAGES.find(l => l.code === psaLang)?.label}…`);
+
+    let count = 0;
+    function speak() {
+      if (count >= repeat) { setIsSpeaking(false); setStatus("✅ Broadcast complete"); return; }
+      const utt = new SpeechSynthesisUtterance(psaText);
+      utt.lang = psaLang;
+      utt.rate = 0.85;
+      utt.pitch = 1.0;
+      utt.onend = () => { count++; setTimeout(speak, 800); };
+      utt.onerror = () => { setIsSpeaking(false); setStatus("⚠️ TTS error — check browser permissions"); };
+      window.speechSynthesis.speak(utt);
+    }
+    speak();
+  }
+
+  function stop() {
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+    setStatus("Stopped");
+  }
+
+  return (
+    <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+      <div className="card">
+        <div className="card-title">📢 Public Service Announcement</div>
+        <p style={{ fontSize: 13, color: "#57534e", marginBottom: 16 }}>
+          Broadcast a multilingual announcement via text-to-speech. Works on any device with a speaker.
+        </p>
+
+        {/* Language */}
+        <div className="form-row">
+          <label className="input-label">Language</label>
+          <select className="input" value={psaLang} onChange={e => { setPsaLang(e.target.value); setPsaText(""); }}>
+            {PSA_LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        </div>
+
+        {/* Templates */}
+        <div className="form-row">
+          <label className="input-label">Quick templates</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button onClick={() => loadTemplate("missing_child")} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>👦 Missing Child</button>
+            <button onClick={() => loadTemplate("missing_elder")} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>👴 Missing Elder</button>
+            <button onClick={() => loadTemplate("general")} className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>📣 General Alert</button>
+          </div>
+        </div>
+
+        {/* Text */}
+        <div className="form-row">
+          <label className="input-label">Announcement text</label>
+          <textarea
+            className="input"
+            value={psaText}
+            onChange={e => setPsaText(e.target.value)}
+            rows={5}
+            placeholder="Type or select a template above…"
+            style={{ resize: "vertical" }}
+          />
+        </div>
+
+        {/* Repeat */}
+        <div className="form-row" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <label className="input-label" style={{ marginBottom: 0 }}>Repeat</label>
+          {[1, 2, 3, 5].map(n => (
+            <button
+              key={n}
+              onClick={() => setRepeat(n)}
+              style={{
+                padding: "4px 12px", borderRadius: 20, fontSize: 13, cursor: "pointer",
+                background: repeat === n ? "#f97316" : "white",
+                color: repeat === n ? "white" : "#57534e",
+                border: `1px solid ${repeat === n ? "#f97316" : "#e7e5e4"}`,
+              }}
+            >{n}×</button>
+          ))}
+        </div>
+
+        {/* Broadcast */}
+        {!ttsSupported && (
+          <div className="badge" style={{ background: "#fee2e2", color: "#dc2626", marginBottom: 12 }}>
+            ⚠️ Text-to-speech not supported in this browser. Use Chrome or Safari.
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <button
+            onClick={broadcast}
+            disabled={isSpeaking || !psaText.trim() || !ttsSupported}
+            className="btn btn-primary flex-1"
+            style={{ background: "#f97316", borderColor: "#f97316", fontSize: 15 }}
+          >
+            {isSpeaking ? <><span className="spinner" /> Broadcasting…</> : "🔊 Broadcast Now"}
+          </button>
+          {isSpeaking && (
+            <button onClick={stop} className="btn btn-ghost" style={{ color: "#dc2626", borderColor: "#dc2626" }}>
+              ⏹ Stop
+            </button>
+          )}
+        </div>
+
+        {status && (
+          <div style={{ marginTop: 12, fontSize: 13, color: "#57534e", textAlign: "center" }}>{status}</div>
+        )}
+      </div>
+
+      {/* Live display */}
+      {psaText && (
+        <div className="card" style={{ marginTop: 12, background: "#fffbeb", borderColor: "#f59e0b" }}>
+          <div className="card-title" style={{ color: "#92400e" }}>📺 Display Panel Text</div>
+          <p style={{ fontSize: 18, lineHeight: 1.8, color: "#1c1917", fontWeight: 500 }}>{psaText}</p>
+          <p style={{ fontSize: 11, color: "#a8a29e", marginTop: 8 }}>
+            Show this on any screen at the venue for literacy-independent communication
+          </p>
         </div>
       )}
     </div>

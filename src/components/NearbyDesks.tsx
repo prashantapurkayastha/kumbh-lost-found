@@ -1,11 +1,13 @@
-import { getLoadColor, type NearbyCenter } from "../services/location";
+import { getLoadColor, type NearbyCenter, type UserLocation } from "../services/location";
 
 interface Props {
   centers: NearbyCenter[];
+  userLocation?: UserLocation | null;
   onSelect?: (center: NearbyCenter) => void;
+  selectedId?: string | null;
 }
 
-export default function NearbyDesks({ centers, onSelect }: Props) {
+export default function NearbyDesks({ centers, onSelect, selectedId }: Props) {
   if (centers.length === 0) {
     return (
       <p style={{ fontSize: 13, color: "#a8a29e", textAlign: "center", padding: "12px 0" }}>
@@ -18,12 +20,18 @@ export default function NearbyDesks({ centers, onSelect }: Props) {
     <div>
       {centers.map((c) => {
         const loadColor = getLoadColor(c.currentLoad, c.capacity);
+        const isSelected = c.id === selectedId;
         return (
           <div
             key={c.id}
             className="desk-item"
             onClick={() => onSelect?.(c)}
-            style={{ cursor: onSelect ? "pointer" : "default" }}
+            style={{
+              cursor: onSelect ? "pointer" : "default",
+              background: isSelected ? "#eff6ff" : undefined,
+              border: isSelected ? "1px solid #93c5fd" : undefined,
+              borderRadius: isSelected ? 10 : undefined,
+            }}
           >
             <div className="desk-icon">🏥</div>
             <div style={{ flex: 1 }}>
@@ -40,23 +48,20 @@ export default function NearbyDesks({ centers, onSelect }: Props) {
               <span style={{ fontSize: 12, color: loadColor, fontWeight: 700 }}>
                 {c.currentLoad}/{c.capacity}
               </span>
-              <div
-                style={{
-                  width: 8, height: 8,
-                  borderRadius: "50%",
-                  background: loadColor,
-                }}
-              />
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: loadColor }} />
               {c.contactNumber && (
                 <a
                   href={`tel:${c.contactNumber}`}
                   onClick={(e) => e.stopPropagation()}
-                  style={{
-                    fontSize: 11, color: "#2563eb", textDecoration: "underline",
-                  }}
+                  style={{ fontSize: 11, color: "#2563eb", textDecoration: "underline" }}
                 >
                   Call
                 </a>
+              )}
+              {onSelect && (
+                <span style={{ fontSize: 11, color: "#2563eb" }}>
+                  {isSelected ? "📍 Shown" : "🗺 Route"}
+                </span>
               )}
             </div>
           </div>

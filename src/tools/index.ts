@@ -1,6 +1,29 @@
 import type { AgentTool } from "../types";
 import { registry } from "../core/backends/registry";
 import { notifyBackend } from "../core/backends/notify";
+import { getActiveVolunteers } from "../services/volunteers";
+import { haversineKm, zoneToLatLng } from "../core/backends/geo";
+
+// ── AMBER alert helper ────────────────────────────────────────────────────────
+function fireAmberAlert(zone: string, refId: string, description: string) {
+  const loc = zoneToLatLng(zone);
+  if (!loc) return;
+  const vols = getActiveVolunteers().filter((v) =>
+    haversineKm({ lat: v.lat, lng: v.lng }, loc) < 3
+  );
+  const seen = new Set<string>();
+  vols.forEach((v) => {
+    if (seen.has(v.centerId)) return;
+    seen.add(v.centerId);
+    notifyBackend.send({
+      centerId: v.centerId,
+      centerName: v.centerName,
+      message: `🚨 AMBER ALERT — Ref ${refId}: ${description}. Last seen near ${zone}. Volunteers in your area — please assist.`,
+      urgency: "high",
+    });
+  });
+  return vols.length;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tool 1: search_found_persons
@@ -149,11 +172,16 @@ const registerMissingPerson: AgentTool = {
       });
     }
 
+    // Fire AMBER alerts to volunteers near last-seen zone
+    const amberDesc = `${input.gender} person, age ${input.ageRange}, wearing ${input.clothingDescription}`;
+    const volsAlerted = fireAmberAlert(input.lastSeenZone as string, report.id, amberDesc) ?? 0;
+
     const result: Record<string, unknown> = {
       referenceId: report.id,
       status: "registered",
       alertedCenters,
-      message: `Report ${report.id} registered and ${alertedCenters.length} nearby centers alerted.`,
+      volunteersAlerted: volsAlerted,
+      message: `Report ${report.id} registered. ${alertedCenters.length} centers and ${volsAlerted} nearby volunteers alerted.`,
     };
 
     if (report.is_duplicate_report && report.duplicate_of) {
@@ -216,10 +244,15 @@ const registerFoundPerson: AgentTool = {
     // Immediately check for matching missing reports
     const matches = registry.searchMissingReports(fp);
 
+    // AMBER alert to volunteers near found zone
+    const foundDesc = `Found ${input.gender} person, age ${input.ageRange}, wearing ${input.clothingDescription}`;
+    const volsAlerted = fireAmberAlert(input.foundZone as string, fp.id, foundDesc) ?? 0;
+
     return {
       recordId: fp.id,
       status: "registered",
       registeredAtCenter: fp.centerName,
+      volunteersAlerted: volsAlerted,
       potentialMissingMatches: matches.map((m) => ({
         missingReportId: m.missingReportId,
         reportedBy: m.reportedBy,

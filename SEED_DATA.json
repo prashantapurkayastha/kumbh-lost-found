@@ -1,15 +1,21 @@
 {
   "_notes": "Seed data for the Lost & Found module. Aligned to the actual Kumbh 2027 hackathon dataset (Claude Impact Lab Mumbai 2026). Center names, location strings, police station coordinates, zone boundaries and chokepoints are all from the official dataset. Missing-person records are synthetic. Load in seed.ts via registry.load*(data.*) calls.",
-
   "helpCenters": [
     {
       "id": "CENTER-RAMKUND",
       "name": "Ramkund Kho-Ya-Paya Kendra",
       "zone": "Ramkund",
-      "location": { "lat": 20.0039, "lng": 73.7894 },
+      "location": {
+        "lat": 20.0039,
+        "lng": 73.7894
+      },
       "contactNumber": "+91-253-2570001",
       "openHours": "04:00-22:00",
-      "languages": ["Marathi", "Hindi", "English"],
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English"
+      ],
       "capacity": 5,
       "currentLoad": 3
     },
@@ -17,10 +23,18 @@
       "id": "CENTER-PANCHAVATI",
       "name": "Panchavati Center",
       "zone": "Panchavati",
-      "location": { "lat": 20.0022, "lng": 73.7883 },
+      "location": {
+        "lat": 20.0022,
+        "lng": 73.7883
+      },
       "contactNumber": "+91-253-2570003",
       "openHours": "05:00-21:00",
-      "languages": ["Marathi", "Hindi", "Gujarati", "Bengali"],
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Gujarati",
+        "Bengali"
+      ],
       "capacity": 4,
       "currentLoad": 2
     },
@@ -28,10 +42,18 @@
       "id": "CENTER-TRIMBAK",
       "name": "Trimbakeshwar Kho-Ya-Paya Kendra",
       "zone": "Trimbakeshwar",
-      "location": { "lat": 19.9333, "lng": 73.5284 },
+      "location": {
+        "lat": 19.9333,
+        "lng": 73.5284
+      },
       "contactNumber": "+91-2594-233001",
       "openHours": "04:00-22:00",
-      "languages": ["Marathi", "Hindi", "Telugu", "Maithili"],
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Telugu",
+        "Maithili"
+      ],
       "capacity": 5,
       "currentLoad": 4
     },
@@ -39,10 +61,18 @@
       "id": "CENTER-NASHIKROAD",
       "name": "Nashik Road Center",
       "zone": "Nashik Road",
-      "location": { "lat": 19.9528, "lng": 73.8397 },
+      "location": {
+        "lat": 19.9528,
+        "lng": 73.8397
+      },
       "contactNumber": "+91-253-2570004",
       "openHours": "05:00-22:00",
-      "languages": ["Marathi", "Hindi", "Gujarati", "Tamil"],
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Gujarati",
+        "Tamil"
+      ],
       "capacity": 4,
       "currentLoad": 1
     },
@@ -50,10 +80,24 @@
       "id": "CENTER-BHARATBHARATI",
       "name": "Bharat Bharati Control Room",
       "zone": "Central",
-      "location": { "lat": 20.0056, "lng": 73.7838 },
+      "location": {
+        "lat": 20.0056,
+        "lng": 73.7838
+      },
       "contactNumber": "+91-253-2570005",
       "openHours": "00:00-24:00",
-      "languages": ["Marathi", "Hindi", "English", "Bengali", "Gujarati", "Telugu", "Tamil", "Kannada", "Bhojpuri", "Maithili"],
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English",
+        "Bengali",
+        "Gujarati",
+        "Telugu",
+        "Tamil",
+        "Kannada",
+        "Bhojpuri",
+        "Maithili"
+      ],
       "capacity": 10,
       "currentLoad": 5
     },
@@ -61,10 +105,17 @@
       "id": "CENTER-CENTRAL",
       "name": "Central Control Room",
       "zone": "Central",
-      "location": { "lat": 20.0050, "lng": 73.7830 },
+      "location": {
+        "lat": 20.005,
+        "lng": 73.783
+      },
       "contactNumber": "+91-253-2570000",
       "openHours": "00:00-24:00",
-      "languages": ["Marathi", "Hindi", "English"],
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English"
+      ],
       "capacity": 10,
       "currentLoad": 6
     },
@@ -72,10 +123,17 @@
       "id": "CENTER-POLICE",
       "name": "Police Main Control Room",
       "zone": "Central",
-      "location": { "lat": 20.0056, "lng": 73.7798 },
+      "location": {
+        "lat": 20.0056,
+        "lng": 73.7798
+      },
       "contactNumber": "+91-253-2570100",
       "openHours": "00:00-24:00",
-      "languages": ["Marathi", "Hindi", "English"],
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "English"
+      ],
       "capacity": 8,
       "currentLoad": 4
     },
@@ -83,10 +141,17 @@
       "id": "CENTER-ADGAON",
       "name": "Adgaon Kho-Ya-Paya",
       "zone": "Adgaon",
-      "location": { "lat": 20.0155, "lng": 73.8269 },
+      "location": {
+        "lat": 20.0155,
+        "lng": 73.8269
+      },
       "contactNumber": "+91-253-2570006",
       "openHours": "05:00-21:00",
-      "languages": ["Marathi", "Hindi", "Punjabi"],
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Punjabi"
+      ],
       "capacity": 3,
       "currentLoad": 1
     },
@@ -94,10 +159,18 @@
       "id": "CENTER-SADHUGRAM",
       "name": "Sadhugram Lost Found",
       "zone": "Sadhugram",
-      "location": { "lat": 20.0025, "lng": 73.7920 },
+      "location": {
+        "lat": 20.0025,
+        "lng": 73.792
+      },
       "contactNumber": "+91-253-2570007",
       "openHours": "04:00-22:00",
-      "languages": ["Marathi", "Hindi", "Bhojpuri", "Bengali"],
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Bhojpuri",
+        "Bengali"
+      ],
       "capacity": 4,
       "currentLoad": 2
     },
@@ -105,38 +178,144 @@
       "id": "CENTER-RAJURBAHULA",
       "name": "Rajur Bahula Center",
       "zone": "Rajur Bahula",
-      "location": { "lat": 19.9460, "lng": 73.6730 },
+      "location": {
+        "lat": 19.946,
+        "lng": 73.673
+      },
       "contactNumber": "+91-253-2570008",
       "openHours": "05:00-20:00",
-      "languages": ["Marathi", "Hindi", "Gujarati"],
+      "languages": [
+        "Marathi",
+        "Hindi",
+        "Gujarati"
+      ],
       "capacity": 3,
       "currentLoad": 0
     }
   ],
-
   "policeStations": [
-    { "id": "PS-ADGAON", "name": "Adgaon Police Station", "location": { "lat": 20.015486, "lng": 73.826945 } },
-    { "id": "PS-AMBAD", "name": "Ambad Police Station", "location": { "lat": 19.96586, "lng": 73.763443 } },
-    { "id": "PS-BHADRAKALI", "name": "Bhadrakali Police Station", "location": { "lat": 19.997799, "lng": 73.789208 } },
-    { "id": "PS-DEVLALI", "name": "Devlali Camp Police Station", "location": { "lat": 19.905098, "lng": 73.826855 } },
-    { "id": "PS-GANGAPUR", "name": "Gangapur Police Station", "location": { "lat": 20.014267, "lng": 73.75007 } },
-    { "id": "PS-INDIRANAGAR", "name": "Indiranagar Police Station", "location": { "lat": 19.974576, "lng": 73.778583 } },
-    { "id": "PS-MHASRUL", "name": "Mhasrul Police Station", "location": { "lat": 20.032542, "lng": 73.802388 } },
-    { "id": "PS-MUMBAINAKA", "name": "Mumbai Naka Police Station", "location": { "lat": 19.987591, "lng": 73.783917 } },
-    { "id": "PS-PANCHAVATI", "name": "Panchavati Police Station", "location": { "lat": 20.015643, "lng": 73.796739 } },
-    { "id": "PS-SARKARWADA", "name": "Sarkarwada Police Station", "location": { "lat": 20.00562, "lng": 73.779772 } },
-    { "id": "PS-SATPUR", "name": "Satpur Police Station", "location": { "lat": 19.991434, "lng": 73.742909 } },
-    { "id": "PS-UPNAGAR", "name": "Upnagar Police Station", "location": { "lat": 19.967381, "lng": 73.824402 } },
-    { "id": "PS-NASHIKROAD", "name": "Nashik Road Police Station", "location": { "lat": 19.9528351, "lng": 73.8397366 } },
-    { "id": "PS-MIDC", "name": "MIDC Chunchale Police Chowki", "location": { "lat": 19.9506575, "lng": 73.7368018 } }
+    {
+      "id": "PS-ADGAON",
+      "name": "Adgaon Police Station",
+      "location": {
+        "lat": 20.015486,
+        "lng": 73.826945
+      }
+    },
+    {
+      "id": "PS-AMBADPOLIC",
+      "name": "AmbadPolice Station",
+      "location": {
+        "lat": 19.96586,
+        "lng": 73.763443
+      }
+    },
+    {
+      "id": "PS-BHADRAKALI",
+      "name": "Bhadrakali Police Station",
+      "location": {
+        "lat": 19.997799,
+        "lng": 73.789208
+      }
+    },
+    {
+      "id": "PS-DEVLALI",
+      "name": "Devlali camp Police Station",
+      "location": {
+        "lat": 19.905098,
+        "lng": 73.826855
+      }
+    },
+    {
+      "id": "PS-GANGAPUR",
+      "name": "Gangapur Police Station",
+      "location": {
+        "lat": 20.014267,
+        "lng": 73.75007
+      }
+    },
+    {
+      "id": "PS-INDIRANAGA",
+      "name": "Indiranagar Police Station",
+      "location": {
+        "lat": 19.974576,
+        "lng": 73.778583
+      }
+    },
+    {
+      "id": "PS-MHASRUL",
+      "name": "Mhasrul Police Station",
+      "location": {
+        "lat": 20.032542,
+        "lng": 73.802388
+      }
+    },
+    {
+      "id": "PS-MUMBAI",
+      "name": "Mumbai naka Police Station",
+      "location": {
+        "lat": 19.987591,
+        "lng": 73.783917
+      }
+    },
+    {
+      "id": "PS-PANCHAVATI",
+      "name": "Panchavati Police Station",
+      "location": {
+        "lat": 20.015643,
+        "lng": 73.796739
+      }
+    },
+    {
+      "id": "PS-SARKARWADA",
+      "name": "Sarkarwada Police Station",
+      "location": {
+        "lat": 20.00562,
+        "lng": 73.779772
+      }
+    },
+    {
+      "id": "PS-SATPUR",
+      "name": "Satpur Police Station",
+      "location": {
+        "lat": 19.991434,
+        "lng": 73.742909
+      }
+    },
+    {
+      "id": "PS-UPNAGAR",
+      "name": "Upnagar Police Station",
+      "location": {
+        "lat": 19.967381,
+        "lng": 73.824402
+      }
+    },
+    {
+      "id": "PS-NASHIK",
+      "name": "Nashik Road Police Station",
+      "location": {
+        "lat": 19.9528351,
+        "lng": 73.8397366
+      }
+    },
+    {
+      "id": "PS-MIDC",
+      "name": "MIDC Chunchale Police Chowki",
+      "location": {
+        "lat": 19.9506575,
+        "lng": 73.7368018
+      }
+    }
   ],
-
   "reunionPoints": [
     {
       "id": "RP-1",
       "name": "Milan Kendra 1 — Ramkund Main Entry",
       "zone": "Ramkund",
-      "location": { "lat": 20.0067, "lng": 73.79062 },
+      "location": {
+        "lat": 20.0067,
+        "lng": 73.79062
+      },
       "landmark": "Panchavati / Ramkund access zone, near the no-vehicle barrier. Look for the green MILAN KENDRA banner.",
       "landmark_mr": "पंचवटी / रामकुंड प्रवेश क्षेत्र, वाहन-बंद बॅरियरजवळ. हिरवे मिलन केंद्र बॅनर शोधा.",
       "landmark_hi": "पंचवटी / रामकुंड प्रवेश क्षेत्र, नो-व्हीकल बैरियर के पास। हरा मिलन केंद्र बैनर देखें।",
@@ -147,7 +326,10 @@
       "id": "RP-2",
       "name": "Milan Kendra 2 — Godavari Ghat Approach",
       "zone": "Ramkund",
-      "location": { "lat": 20.0064, "lng": 73.7902 },
+      "location": {
+        "lat": 20.0064,
+        "lng": 73.7902
+      },
       "landmark": "Godavari Ghat approaches, beside the police kiosk at the ghat steps.",
       "landmark_mr": "गोदावरी घाट प्रवेशद्वार, घाटाच्या पायऱ्यांवरील पोलीस किओस्कजवळ.",
       "landmark_hi": "गोदावरी घाट रास्ते, घाट की सीढ़ियों पर पुलिस किओस्क के पास।",
@@ -158,7 +340,10 @@
       "id": "RP-3",
       "name": "Milan Kendra 3 — CBS / Central Bus Stand",
       "zone": "Central",
-      "location": { "lat": 19.9972, "lng": 73.7799 },
+      "location": {
+        "lat": 19.9972,
+        "lng": 73.7799
+      },
       "landmark": "Central Bus Stand main entrance. Yellow volunteer vest, green banner.",
       "landmark_mr": "सेंट्रल बस स्टँड मुख्य प्रवेशद्वार. पिवळा स्वयंसेवक जॅकेट, हिरवे बॅनर.",
       "landmark_hi": "केंद्रीय बस अड्डा मुख्य प्रवेश। पीला वॉलेंटियर जैकेट, हरा बैनर।",
@@ -169,7 +354,10 @@
       "id": "RP-4",
       "name": "Milan Kendra 4 — Mahamarg Bus Stand",
       "zone": "Central",
-      "location": { "lat": 19.9888, "lng": 73.7829 },
+      "location": {
+        "lat": 19.9888,
+        "lng": 73.7829
+      },
       "landmark": "Mahamarg Bus Stand, near the main ticket counter. Orange flag post.",
       "volunteerAssigned": "V-404",
       "walkingTimeFromNashikRoadCenter": "15 minutes"
@@ -178,58 +366,77 @@
       "id": "RP-5",
       "name": "Milan Kendra 5 — Trimbakeshwar Temple East Gate",
       "zone": "Trimbakeshwar",
-      "location": { "lat": 19.9330, "lng": 73.5281 },
+      "location": {
+        "lat": 19.933,
+        "lng": 73.5281
+      },
       "landmark": "East gate of Trimbakeshwar temple complex, beside the information board.",
       "volunteerAssigned": "V-505",
       "walkingTimeFromTrimbakCenter": "5 minutes"
     }
   ],
-
   "highDensityZones": [
     {
       "name": "Panchavati / Ramkund access zone",
       "type": "No-vehicle pressure zone",
-      "location": { "lat": 20.0067, "lng": 73.79062 },
+      "location": {
+        "lat": 20.0067,
+        "lng": 73.79062
+      },
       "riskLevel": "critical",
       "note": "Highest separation risk. Two help centers within 400m."
     },
     {
       "name": "Ramkund Ghat",
       "type": "No-vehicle pressure zone",
-      "location": { "lat": 20.0067, "lng": 73.79062 },
+      "location": {
+        "lat": 20.0067,
+        "lng": 73.79062
+      },
       "riskLevel": "critical",
       "note": "Peak bathing ghat. Crowd density 4-5x baseline on Amrit Snan days."
     },
     {
       "name": "Godavari Ghat approaches",
       "type": "No-vehicle pressure zone",
-      "location": { "lat": 20.0064, "lng": 73.7902 },
+      "location": {
+        "lat": 20.0064,
+        "lng": 73.7902
+      },
       "riskLevel": "high",
       "note": "Bottleneck approach to the main bathing ghats."
     },
     {
       "name": "CBS / Central Bus Stand",
       "type": "Transfer node",
-      "location": { "lat": 19.9972, "lng": 73.7799 },
+      "location": {
+        "lat": 19.9972,
+        "lng": 73.7799
+      },
       "riskLevel": "high",
       "note": "Major pilgrim arrival/departure point. High separation risk at drop-off."
     },
     {
       "name": "Nashik Road Railway Station",
       "type": "Transfer node",
-      "location": { "lat": 19.9488, "lng": 73.8406 },
+      "location": {
+        "lat": 19.9488,
+        "lng": 73.8406
+      },
       "riskLevel": "high",
       "note": "Main rail entry point for out-of-state pilgrims."
     },
     {
       "name": "Trimbak Road exit / Nashik-Trimbak Road",
       "type": "Traffic choke point",
-      "location": { "lat": 19.9664, "lng": 73.6615 },
+      "location": {
+        "lat": 19.9664,
+        "lng": 73.6615
+      },
       "riskLevel": "medium",
       "note": "Bottleneck on route to Trimbakeshwar."
     }
   ],
-
   "foundPersons": [
     {
       "id": "FP-001",
@@ -237,7 +444,12 @@
       "gender": "male",
       "name": "Unknown",
       "clothing": "blue kurta with white embroidery, grey shorts, brown sandals",
-      "clothing_features": ["blue", "kurta", "grey", "shorts"],
+      "clothing_features": [
+        "blue",
+        "kurta",
+        "grey",
+        "shorts"
+      ],
       "foundZone": "Ramkund",
       "lastSeenLocation": "Ramkund Ghat",
       "foundAt": "2027-07-28T09:15:00Z",
@@ -256,7 +468,12 @@
       "gender": "female",
       "name": "Says her name is Savitribai",
       "clothing": "orange saree with red border, white blouse",
-      "clothing_features": ["orange", "saree", "red border", "white blouse"],
+      "clothing_features": [
+        "orange",
+        "saree",
+        "red border",
+        "white blouse"
+      ],
       "foundZone": "Panchavati",
       "lastSeenLocation": "Panchavati Circle",
       "foundAt": "2027-07-28T07:45:00Z",
@@ -275,7 +492,13 @@
       "gender": "female",
       "name": "Says her name is Pooja",
       "clothing": "pink frock with yellow flowers, white socks, pink ribbons in hair",
-      "clothing_features": ["pink", "frock", "yellow", "flowers", "pink ribbons"],
+      "clothing_features": [
+        "pink",
+        "frock",
+        "yellow",
+        "flowers",
+        "pink ribbons"
+      ],
       "foundZone": "Ramkund",
       "lastSeenLocation": "Panchavati Circle",
       "foundAt": "2027-07-28T10:02:00Z",
@@ -284,7 +507,7 @@
       "languageSpoken": "Gujarati",
       "condition": "distressed",
       "physicalDescription": "Pigtails with pink ribbons, small yellow backpack with cartoon character",
-      "photoMatchConfidence": 0.90,
+      "photoMatchConfidence": 0.9,
       "status": "waiting",
       "is_potential_duplicate": false
     },
@@ -294,7 +517,12 @@
       "gender": "male",
       "name": "Says his name is Ramesh",
       "clothing": "white dhoti, saffron uttariya (shawl), no shirt",
-      "clothing_features": ["white", "dhoti", "saffron", "shawl"],
+      "clothing_features": [
+        "white",
+        "dhoti",
+        "saffron",
+        "shawl"
+      ],
       "foundZone": "Sadhugram",
       "lastSeenLocation": "Sadhugram Gate 1",
       "foundAt": "2027-07-28T08:30:00Z",
@@ -313,7 +541,13 @@
       "gender": "male",
       "name": "Unknown",
       "clothing": "blue and white striped school-uniform style shirt, dark blue trousers",
-      "clothing_features": ["blue", "white", "striped", "shirt", "dark trousers"],
+      "clothing_features": [
+        "blue",
+        "white",
+        "striped",
+        "shirt",
+        "dark trousers"
+      ],
       "foundZone": "Panchavati",
       "lastSeenLocation": "Gauri Patangan",
       "foundAt": "2027-07-28T08:55:00Z",
@@ -332,7 +566,13 @@
       "gender": "male",
       "name": "Unknown, does not speak",
       "clothing": "yellow kurta, white pyjama, black cap",
-      "clothing_features": ["yellow", "kurta", "white", "pyjama", "black cap"],
+      "clothing_features": [
+        "yellow",
+        "kurta",
+        "white",
+        "pyjama",
+        "black cap"
+      ],
       "foundZone": "Trimbakeshwar",
       "lastSeenLocation": "Trimbakeshwar Approach",
       "foundAt": "2027-07-28T06:20:00Z",
@@ -341,7 +581,7 @@
       "languageSpoken": "Punjabi",
       "condition": "non-verbal",
       "physicalDescription": "Uses walking stick, white beard, appears to have hearing difficulty",
-      "photoMatchConfidence": 0.60,
+      "photoMatchConfidence": 0.6,
       "status": "waiting",
       "is_potential_duplicate": false
     },
@@ -351,7 +591,12 @@
       "gender": "female",
       "name": "Priya",
       "clothing": "red kurta, black leggings, dupatta with gold border",
-      "clothing_features": ["red", "kurta", "black leggings", "gold dupatta"],
+      "clothing_features": [
+        "red",
+        "kurta",
+        "black leggings",
+        "gold dupatta"
+      ],
       "foundZone": "Ramkund",
       "lastSeenLocation": "Dasak Ghat",
       "foundAt": "2027-07-28T11:15:00Z",
@@ -370,7 +615,13 @@
       "gender": "female",
       "name": "Says her name is Rani",
       "clothing": "green and gold lehenga choli, glass bangles",
-      "clothing_features": ["green", "gold", "lehenga", "choli", "bangles"],
+      "clothing_features": [
+        "green",
+        "gold",
+        "lehenga",
+        "choli",
+        "bangles"
+      ],
       "foundZone": "Ramkund",
       "lastSeenLocation": "Ramkund Ghat",
       "foundAt": "2027-07-28T11:40:00Z",
@@ -384,7 +635,6 @@
       "is_potential_duplicate": false
     }
   ],
-
   "missingPersonReports": [
     {
       "id": "LP-24780",
@@ -511,7 +761,6 @@
       "is_duplicate_report": false
     }
   ],
-
   "completedReunions": [
     {
       "id": "RU-001",
@@ -537,7 +786,6 @@
       "note": "Classic cross-center case — family at Panchvati, person found at Trimbakeshwar. Unified search enabled the match."
     }
   ],
-
   "demoStats": {
     "foundPersonsRegisteredToday": 12,
     "missingReportsToday": 9,
@@ -548,7 +796,6 @@
     "duplicateReportsDetectedToday": 2,
     "crossCenterMatchesToday": 3
   },
-
   "knownLocations": [
     "Ramkund Ghat",
     "Panchavati Circle",

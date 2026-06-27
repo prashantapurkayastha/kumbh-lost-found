@@ -61,7 +61,8 @@ Note in your first message that you have received the photo and will use it in t
 ## What NOT to do
 - Do not ask for more than 3-4 details before calling the search tool. Searching first is always better.
 - Do not give vague instructions like "check all the help centers." Be specific — name the center and the reunion point.
-- Do not end the conversation without confirming an action was taken.`;
+- Do not end the conversation without confirming an action was taken.
+- NEVER reveal contact numbers, phone numbers, or any personal details of families who filed reports to a pilgrim. These are PII visible to desk operators only. If a match is found, direct the pilgrim to the reunion point or help center — never share another family's phone number.`;
 
 interface ClaudeResponse {
   stop_reason: string;

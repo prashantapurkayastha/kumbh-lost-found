@@ -224,39 +224,40 @@ export default function VolunteerPanel() {
       <div className="panel-header">
         <div>
           <h1>🙋 Volunteer Panel</h1>
-          <p>Kumbh Mela 2027 · Lost & Found</p>
+          <p style={{ fontSize: 11 }}>Kumbh Mela 2027 · Lost & Found</p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
           <button
             onClick={() => navigate("/")}
             style={{
-              fontSize: 12, color: "rgba(255,255,255,.7)",
-              background: "rgba(255,255,255,.1)",
-              padding: "4px 10px", borderRadius: 6, border: "none",
+              fontSize: 11, color: "rgba(255,255,255,.8)",
+              background: "rgba(255,255,255,.15)",
+              padding: "4px 8px", borderRadius: 6, border: "none", whiteSpace: "nowrap",
             }}
           >
-            Public App ↗
+            ← App
           </button>
           <button
             onClick={() => navigate("/help-desk")}
             style={{
-              fontSize: 12, color: "rgba(255,255,255,.7)",
-              background: "rgba(255,255,255,.1)",
-              padding: "4px 10px", borderRadius: 6, border: "none",
+              fontSize: 11, color: "rgba(255,255,255,.8)",
+              background: "rgba(255,255,255,.15)",
+              padding: "4px 8px", borderRadius: 6, border: "none", whiteSpace: "nowrap",
             }}
           >
-            Help Desk ↗
+            Desk ↗
           </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="tab-nav">
+      {/* Tabs — scrollable on narrow screens */}
+      <div className="tab-nav" style={{ overflowX: "auto", flexWrap: "nowrap" }}>
         {(["dashboard", "help-report", "found-person", "notifications"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`tab-btn${tab === t ? " active" : ""}`}
+            style={{ whiteSpace: "nowrap" }}
           >
             {t === "dashboard" && "📊 Dashboard"}
             {t === "help-report" && "📝 Help Report"}

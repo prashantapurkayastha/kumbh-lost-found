@@ -173,16 +173,16 @@ export default function HelpDeskPanel() {
           <h1>🏥 Help Desk</h1>
           <p>Kumbh Mela 2027 · Control Room</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           <button
             onClick={() => navigate("/")}
-            style={{ fontSize: 11, color: "rgba(255,255,255,.7)", background: "rgba(255,255,255,.1)", padding: "4px 10px", borderRadius: 6, border: "none" }}
+            style={{ fontSize: 11, color: "rgba(255,255,255,.8)", background: "rgba(255,255,255,.15)", padding: "4px 8px", borderRadius: 6, border: "none", whiteSpace: "nowrap" }}
           >
-            Public App ↗
+            ← App
           </button>
           <button
             onClick={() => navigate("/volunteer")}
-            style={{ fontSize: 11, color: "rgba(255,255,255,.7)", background: "rgba(255,255,255,.1)", padding: "4px 10px", borderRadius: 6, border: "none" }}
+            style={{ fontSize: 11, color: "rgba(255,255,255,.8)", background: "rgba(255,255,255,.15)", padding: "4px 8px", borderRadius: 6, border: "none", whiteSpace: "nowrap" }}
           >
             Volunteer ↗
           </button>

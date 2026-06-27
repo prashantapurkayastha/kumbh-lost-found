@@ -258,7 +258,7 @@ const registerFoundPerson: AgentTool = {
         missingReportId: m.missingReportId,
         reportedBy: m.reportedBy,
         reportingCenter: m.reportingCenter,
-        contactNumber: m.contactNumber,
+        // contactNumber intentionally excluded — PII, visible to desk operators only
         confidence: m.confidence,
         matchReason: m.matchReason,
         is_cross_center_match: m.is_cross_center_match,

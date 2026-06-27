@@ -308,37 +308,43 @@ export default function PublicApp() {
           </div>
         ) : null}
 
-        {/* Header */}
+        {/* Header — row 1: title + language selector */}
         <div className="page-header" style={{ justifyContent: "space-between" }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 16, color: "#f97316" }}>🕉 {t("title", lang)}</div>
             <div style={{ fontSize: 11, color: "#78716c" }}>{t("subtitle", lang)}</div>
           </div>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            {/* Always-visible: matching runs locally on device */}
-            <span style={{ fontSize: 10, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 10, padding: "2px 7px", whiteSpace: "nowrap", fontWeight: 600 }}>
-              🔵 Matching locally
-            </span>
-            <LanguageSelector value={lang} onChange={setLang} compact />
-            <button
-              onClick={() => navigate("/registry")}
-              style={{ fontSize: 11, color: "#15803d", padding: "4px 8px", border: "1px solid #86efac", borderRadius: 6, background: "#f0fdf4", whiteSpace: "nowrap" }}
-            >
-              📋 Registry
-            </button>
-            <button
-              onClick={() => navigate("/volunteer")}
-              style={{ fontSize: 11, color: "#78716c", padding: "4px 8px", border: "1px solid #e7e5e4", borderRadius: 6, whiteSpace: "nowrap" }}
-            >
-              {t("volunteer", lang)}
-            </button>
-            <button
-              onClick={() => navigate("/help-desk")}
-              style={{ fontSize: 11, color: "#1d4ed8", padding: "4px 8px", border: "1px solid #bfdbfe", borderRadius: 6, background: "#eff6ff", whiteSpace: "nowrap" }}
-            >
-              {t("helpDesk", lang)}
-            </button>
-          </div>
+          <LanguageSelector value={lang} onChange={setLang} compact />
+        </div>
+
+        {/* Header — row 2: secondary nav (scrollable on narrow screens) */}
+        <div style={{
+          display: "flex", gap: 6, alignItems: "center",
+          padding: "6px 12px", overflowX: "auto",
+          background: "#faf9f7", borderBottom: "1px solid #e7e5e4",
+          scrollbarWidth: "none",
+        }}>
+          <span style={{ fontSize: 10, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 10, padding: "3px 8px", whiteSpace: "nowrap", fontWeight: 600, flexShrink: 0 }}>
+            🔵 Matching locally
+          </span>
+          <button
+            onClick={() => navigate("/registry")}
+            style={{ fontSize: 11, color: "#15803d", padding: "4px 10px", border: "1px solid #86efac", borderRadius: 6, background: "#f0fdf4", whiteSpace: "nowrap", flexShrink: 0 }}
+          >
+            📋 Registry
+          </button>
+          <button
+            onClick={() => navigate("/volunteer")}
+            style={{ fontSize: 11, color: "#78716c", padding: "4px 10px", border: "1px solid #e7e5e4", borderRadius: 6, background: "white", whiteSpace: "nowrap", flexShrink: 0 }}
+          >
+            🙋 {t("volunteer", lang)}
+          </button>
+          <button
+            onClick={() => navigate("/help-desk")}
+            style={{ fontSize: 11, color: "#1d4ed8", padding: "4px 10px", border: "1px solid #bfdbfe", borderRadius: 6, background: "#eff6ff", whiteSpace: "nowrap", flexShrink: 0 }}
+          >
+            🏥 {t("helpDesk", lang)}
+          </button>
         </div>
 
         {/* Map — shows route when a center is selected */}

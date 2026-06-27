@@ -11,5 +11,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["server", "src/core", "src/tools", "src/data", "src/types.ts", "SEED_DATA.json"]
+  "include": ["server", "src/core", "src/tools", "src/data", "src/services/volunteers.ts", "src/services/offlineQueue.ts", "src/services/sms.ts", "src/types.ts", "SEED_DATA.json"]
 }

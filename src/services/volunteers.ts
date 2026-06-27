@@ -43,19 +43,20 @@ export function removeVolunteer(id: string): void {
   } catch {}
 }
 
-// Seed a few demo volunteers near key zones so the public app shows them even
-// before any volunteer panel is opened (realistic for a hackathon demo)
+// Seed demo volunteers near key zones. Called on every app load — always
+// refreshes demo records' lastSeen so they never expire during a demo session.
+// Real volunteer records (non-VOL-DEMO-*) are preserved unchanged.
 export function seedDemoVolunteers(): void {
   const existing = readAll();
-  if (existing.length > 0) return; // already seeded
+  const realVols = existing.filter((v) => !v.id.startsWith("VOL-DEMO-"));
 
   const demos: VolunteerRecord[] = [
-    { id: "VOL-DEMO-1", name: "Priya Desai",   centerId: "CENTER-RAMKUND",    centerName: "Ramkund Kho-Ya-Paya Kendra", lat: 20.0042, lng: 73.7896, lastSeen: Date.now() },
-    { id: "VOL-DEMO-2", name: "Rahul Sharma",  centerId: "CENTER-PANCHAVATI", centerName: "Panchavati Center",          lat: 20.0018, lng: 73.7880, lastSeen: Date.now() },
-    { id: "VOL-DEMO-3", name: "Sunita Patil",  centerId: "CENTER-CENTRAL",    centerName: "Central Control Room",       lat: 20.0055, lng: 73.7835, lastSeen: Date.now() },
-    { id: "VOL-DEMO-4", name: "Arjun Kulkarni",centerId: "CENTER-ADGAON",     centerName: "Adgaon Kho-Ya-Paya",        lat: 20.0158, lng: 73.8265, lastSeen: Date.now() },
+    { id: "VOL-DEMO-1", name: "Priya Desai",    centerId: "CENTER-RAMKUND",    centerName: "Ramkund Kho-Ya-Paya Kendra", lat: 20.0042, lng: 73.7896, lastSeen: Date.now() },
+    { id: "VOL-DEMO-2", name: "Rahul Sharma",   centerId: "CENTER-PANCHAVATI", centerName: "Panchavati Center",           lat: 20.0018, lng: 73.7880, lastSeen: Date.now() },
+    { id: "VOL-DEMO-3", name: "Sunita Patil",   centerId: "CENTER-CENTRAL",    centerName: "Central Control Room",        lat: 20.0055, lng: 73.7835, lastSeen: Date.now() },
+    { id: "VOL-DEMO-4", name: "Arjun Kulkarni", centerId: "CENTER-ADGAON",     centerName: "Adgaon Kho-Ya-Paya",         lat: 20.0158, lng: 73.8265, lastSeen: Date.now() },
   ];
   try {
-    localStorage.setItem(KEY, JSON.stringify(demos));
+    localStorage.setItem(KEY, JSON.stringify([...realVols, ...demos]));
   } catch {}
 }

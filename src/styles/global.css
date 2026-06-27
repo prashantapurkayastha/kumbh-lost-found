@@ -408,6 +408,38 @@ a { color: inherit; text-decoration: none; }
   }
 }
 
+/* ── Mobile overrides (<480px) ──────────────────────────────────────────── */
+@media (max-width: 480px) {
+  /* Tighter page header on small screens */
+  .page-header { padding: 10px 12px; gap: 8px; }
+
+  /* Tab nav: don't force equal-width tabs — let them be natural width and scroll */
+  .tab-nav { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-btn { flex: 0 0 auto; padding: 10px 12px; font-size: 12px; }
+
+  /* Panel header: tighter on mobile */
+  .panel-header { padding: 12px 14px; }
+  .panel-header h1 { font-size: 16px; }
+
+  /* Cards: less padding on mobile */
+  .card { padding: 14px; }
+
+  /* Stats row: smaller font on mobile */
+  .stat-value { font-size: 18px; }
+
+  /* Two-panel: stack vertically on mobile (map goes below content) */
+  .two-panel { display: flex; flex-direction: column; height: auto; }
+  .two-panel__left { overflow-y: visible; border-right: none; border-bottom: 1px solid var(--c-border); }
+  .two-panel__right { height: 240px; position: relative; flex-shrink: 0; }
+
+  /* Chat container: full height minus header + offline banner */
+  .chat-container { height: calc(100dvh - 56px); }
+
+  /* Buttons: slightly smaller on tiny screens */
+  .btn-lg { padding: 16px 20px; font-size: 15px; }
+}
+
 /* ── Misc ───────────────────────────────────────────────────────────────── */
 .divider { height: 1px; background: var(--c-border); margin: 16px 0; }
 .text-sm  { font-size: 13px; }

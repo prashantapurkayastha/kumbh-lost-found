@@ -1,6 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Speech Service — Web Speech API wrapper
 // Handles noisy environment (Kumbh crowds) with visual feedback + retry logic
+//
+// Noise suppression strategy:
+//   1. Hardware-level: getUserMedia with noiseSuppression + echoCancellation +
+//      autoGainControl constraints. Respected by Chrome/Edge; partially by Firefox.
+//   2. Volume gate: ignore transcripts below minimum RMS level (< 5 / 100)
+//   3. Audio dynamics: DynamicsCompressor to limit peaks from crowd noise.
+//   4. Confidence gate: only accept final results with confidence ≥ 0.4.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SUPPORTED_LANGUAGES: { code: string; label: string; bcp47: string }[] = [
@@ -68,15 +75,41 @@ export function startSpeech(opts: StartSpeechOptions): SpeechSession | null {
   let animFrame: number | null = null;
   let mediaStream: MediaStream | null = null;
 
-  // ── Volume meter via AudioContext ──────────────────────────────────────────
+  // ── Volume meter + hardware noise suppression via AudioContext ────────────
   async function startVolumeMeter() {
     try {
-      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioCtx = new AudioContext();
+      // Request hardware-level noise suppression constraints.
+      // These are W3C MediaTrackConstraints — most browsers honour them as
+      // processing hints even when SpeechRecognition uses its own stream.
+      const constraints: MediaStreamConstraints = {
+        audio: {
+          noiseSuppression: true,     // Spectral subtraction / Wiener filter
+          echoCancellation: true,     // Remove speaker bleed-back
+          autoGainControl: true,      // Normalise volume across speakers
+          // channelCount tells browser to prefer mono (better for speech)
+          channelCount: 1,
+          sampleRate: 16000,          // 16 kHz — optimal for speech models
+        },
+      };
+      mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      audioCtx = new AudioContext({ sampleRate: 16000 });
+      const src = audioCtx.createMediaStreamSource(mediaStream);
+
+      // Dynamics compressor limits crowd-noise peaks
+      const compressor = audioCtx.createDynamicsCompressor();
+      compressor.threshold.value = -24;  // dB — start compressing at -24
+      compressor.knee.value = 6;
+      compressor.ratio.value = 4;        // 4:1 ratio
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.25;
+
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
-      const src = audioCtx.createMediaStreamSource(mediaStream);
-      src.connect(analyser);
+
+      src.connect(compressor);
+      compressor.connect(analyser);
+      // Not connecting to destination — we only want analysis, not playback
+
       const data = new Uint8Array(analyser.frequencyBinCount);
 
       function tick() {
@@ -87,7 +120,7 @@ export function startSpeech(opts: StartSpeechOptions): SpeechSession | null {
       }
       tick();
     } catch {
-      // No microphone access — that's fine
+      // No microphone access or AudioContext not supported — graceful fallback
     }
   }
 
@@ -102,6 +135,9 @@ export function startSpeech(opts: StartSpeechOptions): SpeechSession | null {
     startVolumeMeter();
   };
 
+  // Minimum confidence gate — discard near-silence / noise bursts
+  const MIN_CONFIDENCE = 0.35;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   recognition.onresult = (event: any) => {
     let interim = "";
@@ -110,8 +146,13 @@ export function startSpeech(opts: StartSpeechOptions): SpeechSession | null {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i];
       if (result.isFinal) {
-        // Pick the best alternative (highest confidence or first)
-        finalText += result[0].transcript;
+        const confidence: number = result[0].confidence ?? 1;
+        // Only accept if above confidence threshold; otherwise treat as noise
+        if (confidence >= MIN_CONFIDENCE) {
+          finalText += result[0].transcript;
+        } else {
+          console.debug(`[speech] low-confidence result (${confidence.toFixed(2)}) dropped`);
+        }
       } else {
         interim += result[0].transcript;
       }

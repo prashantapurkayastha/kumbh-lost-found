@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { addFoundPersonSync, addMissingReportSync } from "../core/backends/registrySync";
 import type { RegisterFoundPersonInput, RegisterMissingPersonInput } from "../types";
+import { filterText } from "../utils/profanityFilter";
 
 // ── Icon mode grids ──────────────────────────────────────────────────────────
 const AGE_ICONS: { value: string; icon: string; label: string }[] = [
@@ -205,8 +206,11 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setClothing((prev) => (prev ? prev + " " + transcript : transcript));
+      const rawTranscript = event.results[0][0].transcript;
+      const { cleaned, blocked } = filterText(rawTranscript);
+      if (blocked) setVoiceTooltip("⚠️ Inappropriate language removed");
+      setClothing((prev) => (prev ? prev + " " + cleaned : cleaned));
+      setTimeout(() => setVoiceTooltip(""), 3000);
     };
     recognition.onerror = () => {
       setVoiceTooltip("Could not capture voice. Please try again.");
@@ -280,8 +284,11 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setMissingClothing((prev) => (prev ? prev + " " + transcript : transcript));
+      const rawTranscript = event.results[0][0].transcript;
+      const { cleaned, blocked } = filterText(rawTranscript);
+      if (blocked) setMissingVoiceTooltip("⚠️ Inappropriate language removed");
+      setMissingClothing((prev) => (prev ? prev + " " + cleaned : cleaned));
+      setTimeout(() => setMissingVoiceTooltip(""), 3000);
     };
     recognition.onerror = () => {
       setMissingVoiceTooltip("Could not capture voice. Please try again.");

@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import Anthropic from "@anthropic-ai/sdk";
 import path from "path";
@@ -15,8 +15,85 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-app.use(cors());
-app.use(express.json({ limit: "20mb" })); // large limit for base64 photos
+// ── CORS — restrict to known origins in production ────────────────────────────
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173,http://localhost:3001")
+  .split(",").map(o => o.trim());
+
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow server-to-server (no origin), or listed origins
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin '${origin}' not allowed`));
+  },
+  methods: ["GET", "POST", "PUT", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
+
+// ── Body parsing — size limits per route ─────────────────────────────────────
+// /api/claude can carry base64 images (up to 5 MB practical limit)
+app.use("/api/claude", express.json({ limit: "6mb" }));
+// All other routes get a tight 256 KB limit — no reason to be larger
+app.use(express.json({ limit: "256kb" }));
+
+// ── In-memory rate limiter (no external dep needed for demo) ──────────────────
+interface RateRecord { count: number; resetAt: number }
+const rateLimitStore = new Map<string, RateRecord>();
+
+function rateLimit(maxReq: number, windowMs: number) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0].trim()
+      ?? req.socket.remoteAddress
+      ?? "unknown";
+    const now = Date.now();
+    const rec = rateLimitStore.get(ip) ?? { count: 0, resetAt: now + windowMs };
+    if (now > rec.resetAt) { rec.count = 0; rec.resetAt = now + windowMs; }
+    rec.count++;
+    rateLimitStore.set(ip, rec);
+    if (rec.count > maxReq) {
+      res.status(429).json({ error: "Too many requests — please wait a moment." });
+      return;
+    }
+    next();
+  };
+}
+
+// Clean up the rate-limit store every 10 minutes to prevent memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, rec] of rateLimitStore) {
+    if (now > rec.resetAt) rateLimitStore.delete(ip);
+  }
+}, 10 * 60 * 1000);
+
+// ── Security headers ──────────────────────────────────────────────────────────
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  // Strict CSP in production; relax in dev to allow Vite HMR
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Content-Security-Policy",
+      "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'");
+  }
+  next();
+});
+
+// ── Input sanitiser — strip potential prompt injection tokens ─────────────────
+const INJECTION_PATTERNS = [
+  /\bignore\s+(all\s+)?previous\s+instructions?\b/i,
+  /\bsystem\s*:\s*/i,
+  /\bpretend\s+you\s+are\b/i,
+  /\bact\s+as\s+(if\s+)?(you\s+are\s+)?a?\b/i,
+  /<\|?(system|user|assistant|end)\|?>/i,
+  /\bDAN\b/,  // "Do Anything Now" jailbreak marker
+  /\bjailbreak\b/i,
+];
+function sanitiseInput(text: string): string {
+  let out = text;
+  for (const p of INJECTION_PATTERNS) out = out.replace(p, "[filtered]");
+  return out.slice(0, 4000); // Hard max length
+}
 
 // ── Health check (enriched for deployability scoring) ────────────────────────
 const SERVER_START = Date.now();
@@ -48,8 +125,31 @@ app.get("/api/health", (_req, res) => {
 
 // ── Claude proxy ──────────────────────────────────────────────────────────────
 // All Claude calls go through here so the API key never touches the browser.
-app.post("/api/claude", async (req, res) => {
+// Rate-limited: 30 requests per minute per IP to cap spend.
+app.post("/api/claude", rateLimit(30, 60_000), async (req, res) => {
   const { system, tools, messages, max_tokens = 4096 } = req.body;
+
+  // Sanitise all text content in messages
+  if (Array.isArray(messages)) {
+    for (const msg of messages) {
+      if (typeof msg.content === "string") {
+        msg.content = sanitiseInput(msg.content);
+      } else if (Array.isArray(msg.content)) {
+        for (const block of msg.content) {
+          if (block.type === "text" && typeof block.text === "string") {
+            block.text = sanitiseInput(block.text);
+          }
+          // Cap image size: base64 at ~3.7 MB → ≈5 MB raw; reject oversized images
+          if (block.type === "image" && block.source?.type === "base64") {
+            const b64 = block.source.data as string;
+            if (b64.length > 5_000_000) {
+              return res.status(413).json({ error: "Image too large. Please use a photo under 3 MB." });
+            }
+          }
+        }
+      }
+    }
+  }
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({
@@ -133,7 +233,8 @@ app.get("/api/registry/state", (_req, res) => {
 });
 
 // POST /api/registry/found-persons — register a found person (with dedup guard)
-app.post("/api/registry/found-persons", (req, res) => {
+// Rate-limited: 60 registrations per minute per IP (volunteer flow)
+app.post("/api/registry/found-persons", rateLimit(60, 60_000), (req, res) => {
   const input = req.body as RegisterFoundPersonInput;
   if (!input.ageRange || !input.gender || !input.clothingDescription || !input.foundZone || !input.centerId) {
     return res.status(400).json({ error: "Missing required fields: ageRange, gender, clothingDescription, foundZone, centerId" });
@@ -163,7 +264,8 @@ app.post("/api/registry/found-persons", (req, res) => {
 });
 
 // POST /api/registry/missing-reports — register a missing person report
-app.post("/api/registry/missing-reports", (req, res) => {
+// Rate-limited: 20 reports per minute per IP
+app.post("/api/registry/missing-reports", rateLimit(20, 60_000), (req, res) => {
   const input = req.body as RegisterMissingPersonInput & { reportingCenter?: string };
   if (!input.ageRange || !input.gender || !input.clothingDescription || !input.lastSeenZone) {
     return res.status(400).json({ error: "Missing required fields: ageRange, gender, clothingDescription, lastSeenZone" });

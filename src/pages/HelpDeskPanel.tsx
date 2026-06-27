@@ -81,7 +81,7 @@ export default function HelpDeskPanel() {
   const isOnline = useOnline();
 
   const [loggedIn, setLoggedIn] = useState(false);
-  const [tab, setTab] = useState<Tab>("queue");
+  const [tab, setTab] = useState<Tab>("cctv");
   const [scenario, setScenario] = useState<Scenario>("family-reports");
   const [deskId, setDeskId] = useState("CENTER-RAMKUND");
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);

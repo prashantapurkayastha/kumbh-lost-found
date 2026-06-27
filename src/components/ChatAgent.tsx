@@ -3,6 +3,7 @@ import { runAgent, type AgentResult } from "../core/agent";
 import { allTools } from "../tools";
 import VoiceInput from "./VoiceInput";
 import type { Message } from "../types";
+import { filterText } from "../utils/profanityFilter";
 
 export interface ChatAgentProps {
   langCode: string;
@@ -99,6 +100,7 @@ export default function ChatAgent({
   const [loading, setLoading] = useState(false);
   const [activeTools, setActiveTools] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [contentWarning, setContentWarning] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const didInitRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -171,14 +173,20 @@ export default function ChatAgent({
     e.preventDefault();
     const t = input.trim();
     if (!t || loading) return;
+    // Profanity filter
+    const filtered = filterText(t);
+    setContentWarning(filtered.reason ?? null);
     setInput("");
-    void sendMessage(t);
+    void sendMessage(filtered.cleaned);
   }
 
   function handleVoiceTranscript(text: string) {
-    setInput(text);
+    // Profanity filter on voice transcript
+    const filtered = filterText(text);
+    if (filtered.blocked) setContentWarning(filtered.reason ?? null);
+    setInput(filtered.cleaned);
     // Auto-send voice input
-    void sendMessage(text);
+    void sendMessage(filtered.cleaned);
   }
 
   // Auto-resize textarea
@@ -232,6 +240,12 @@ export default function ChatAgent({
         {error && (
           <div className="chat-msg system" style={{ background: "#fee2e2", color: "#dc2626" }}>
             ⚠️ {error}. Please try again.
+          </div>
+        )}
+        {contentWarning && (
+          <div className="chat-msg system" style={{ background: "#fff8e7", color: "#92400e", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>⚠️ {contentWarning}</span>
+            <button onClick={() => setContentWarning(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#92400e", fontSize: 14 }}>✕</button>
           </div>
         )}
 

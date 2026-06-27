@@ -61,6 +61,7 @@ export const registry = {
       .filter(p => !p.expiresAt || new Date(p.expiresAt) > new Date());
   },
   getAllMissingReports(): MissingReport[] {
+    this.redactExpiredPII();
     return missingReports
       .filter((r) => r.status === "active")
       .filter(p => !p.expiresAt || new Date(p.expiresAt) > new Date());
@@ -352,9 +353,27 @@ export const registry = {
     if (report) {
       report.status = "resolved";
       report.matchedFoundPersonId = foundPersonId;
+      // Schedule PII deletion 36 hours after resolution (DPDP compliance)
+      const deleteAt = new Date(Date.now() + 36 * 60 * 60 * 1000);
+      report.piiDeletesAt = deleteAt.toISOString();
     }
     const fp = foundPersons.find((p) => p.id === foundPersonId);
     if (fp) fp.status = "reunited";
+  },
+
+  // ── Purge PII from resolved records past the 36h deadline ────────────────────
+  redactExpiredPII() {
+    const now = Date.now();
+    for (const r of missingReports) {
+      if (r.piiRedacted) continue;
+      if (!r.piiDeletesAt) continue;
+      if (new Date(r.piiDeletesAt).getTime() > now) continue;
+      // Redact PII fields
+      r.contactNumber = undefined;
+      r.reportedBy = "[redacted]";
+      r.photoBase64 = undefined;
+      r.piiRedacted = true;
+    }
   },
 
   // ── Search missing reports (for volunteer flow) ───────────────────────────────

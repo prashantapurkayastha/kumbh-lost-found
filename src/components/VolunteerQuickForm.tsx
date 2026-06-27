@@ -484,8 +484,23 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
         {/* ── HELP-FAMILY mode ── */}
         {mode === "help-family" && (
           <>
-            <div style={{ marginBottom: 18, padding: "10px 14px", background: "#f0f9ff", borderRadius: 8, fontSize: 13, color: "#0369a1" }}>
+            <div style={{ marginBottom: 12, padding: "10px 14px", background: "#f0f9ff", borderRadius: 8, fontSize: 13, color: "#0369a1" }}>
               👨‍👩‍👧 A family member is reporting a missing person. Fill in the details below.
+            </div>
+
+            {/* Prominent voice button */}
+            <div style={{ marginBottom: 16, background: "#fdf4ff", border: "1.5px solid #e9d5ff", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 36, height: 36, background: "#7c3aed", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: 18 }}>🎤</span>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#5b21b6" }}>Voice input available</div>
+                <div style={{ fontSize: 11, color: "#7c3aed" }}>Use the 🎤 button next to Clothing Description to speak the description</div>
+              </div>
+              <button type="button" onClick={handleMissingVoiceInput}
+                style={{ padding: "8px 14px", background: "#7c3aed", color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                🎤 Speak
+              </button>
             </div>
 
             <div style={{ fontWeight: 700, fontSize: 13, color: "#374151", marginBottom: 10 }}>Reporter Details</div>
@@ -516,17 +531,26 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
               <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <div>
                   <input ref={missingFileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleMissingPhotoUpload} />
-                  <button type="button" onClick={() => missingFileInputRef.current?.click()} style={{ padding: "8px 14px", background: "#f3f4f6", border: "1.5px dashed #9ca3af", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#374151" }}>
-                    📷 Upload Photo
+                  <button type="button" onClick={() => missingFileInputRef.current?.click()} disabled={missingPhotoAnalyzing} style={{ padding: "8px 14px", background: missingPhotoAnalyzing ? "#ede9fe" : "#f3f4f6", border: "1.5px dashed #9ca3af", borderRadius: 6, cursor: missingPhotoAnalyzing ? "not-allowed" : "pointer", fontSize: 13, color: "#374151" }}>
+                    {missingPhotoAnalyzing ? "⏳ Analysing…" : "📷 Upload Photo"}
                   </button>
-                  {missingPhotoAnalyzing && (
-                    <div style={{ marginTop: 6, fontSize: 12, color: "#7c3aed", display: "flex", alignItems: "center", gap: 6 }}>
-                      <span className="spinner" style={{ width: 14, height: 14 }} /> Analyzing with AI…
-                    </div>
-                  )}
                 </div>
+                {/* Photo preview with AI overlay */}
                 {missingPhotoPreview && (
-                  <img src={missingPhotoPreview} alt="Preview" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb" }} />
+                  <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
+                    <img src={missingPhotoPreview} alt="Preview" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: missingPhotoAnalyzing ? "2.5px solid #7c3aed" : "1px solid #e5e7eb", display: "block" }} />
+                    {missingPhotoAnalyzing && (
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(109,40,217,.7)", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                        <span className="spinner" style={{ width: 22, height: 22, borderWidth: 3, borderColor: "rgba(255,255,255,.3)", borderTopColor: "white" }} />
+                        <span style={{ fontSize: 10, color: "white", fontWeight: 800, letterSpacing: ".5px" }}>AI</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!missingPhotoPreview && missingPhotoAnalyzing && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#7c3aed", fontWeight: 600 }}>
+                    <span className="spinner" style={{ width: 16, height: 16, borderColor: "#ddd6fe", borderTopColor: "#7c3aed" }} /> Analysing photo…
+                  </div>
                 )}
               </div>
             </div>
@@ -591,7 +615,7 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
         {/* ── FOUND-PERSON / HELP-PERSON mode ── */}
         {(mode === "found-person" || mode === "help-person") && (
           <>
-            <div style={{ marginBottom: 12, padding: "10px 14px", background: "#fff8f3", borderRadius: 8, fontSize: 13, color: "#92400e", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ marginBottom: 10, padding: "10px 14px", background: "#fff8f3", borderRadius: 8, fontSize: 13, color: "#92400e", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>{mode === "found-person" ? "👤 Registering an unaccompanied person." : "🙋 A person is lost and needs to be registered."}</span>
               <button
                 type="button"
@@ -599,6 +623,21 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
                 style={{ fontSize: 11, padding: "4px 10px", background: iconMode ? "#1d4ed8" : "#e2e8f0", color: iconMode ? "white" : "#374151", border: "none", borderRadius: 20, cursor: "pointer", fontWeight: 700, flexShrink: 0 }}
               >
                 {iconMode ? "📝 Text Mode" : "🖼 Icon Mode"}
+              </button>
+            </div>
+
+            {/* Prominent voice button */}
+            <div style={{ marginBottom: 12, background: "#fdf4ff", border: "1.5px solid #e9d5ff", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 36, height: 36, background: "#7c3aed", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: 18 }}>🎤</span>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#5b21b6" }}>Voice input available</div>
+                <div style={{ fontSize: 11, color: "#7c3aed" }}>Tap Speak to dictate clothing description by voice</div>
+              </div>
+              <button type="button" onClick={handleVoiceInput}
+                style={{ padding: "8px 14px", background: "#7c3aed", color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                🎤 Speak
               </button>
             </div>
 
@@ -614,16 +653,27 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
               <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <div>
                   <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoUpload} />
-                  <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: "8px 14px", background: "#f3f4f6", border: "1.5px dashed #9ca3af", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#374151" }}>
-                    📷 Upload Photo
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={photoAnalyzing} style={{ padding: "8px 14px", background: photoAnalyzing ? "#ede9fe" : "#f3f4f6", border: "1.5px dashed #9ca3af", borderRadius: 6, cursor: photoAnalyzing ? "not-allowed" : "pointer", fontSize: 13, color: "#374151" }}>
+                    {photoAnalyzing ? "⏳ Analysing…" : "📷 Upload Photo"}
                   </button>
-                  {photoAnalyzing && (
-                    <div style={{ marginTop: 6, fontSize: 12, color: "#7c3aed", display: "flex", alignItems: "center", gap: 6 }}>
-                      <span className="spinner" style={{ width: 14, height: 14 }} /> Analyzing with AI…
-                    </div>
-                  )}
                 </div>
-                {photoPreview && <img src={photoPreview} alt="Preview" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb" }} />}
+                {/* Photo preview with AI overlay */}
+                {photoPreview && (
+                  <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
+                    <img src={photoPreview} alt="Preview" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: photoAnalyzing ? "2.5px solid #7c3aed" : "1px solid #e5e7eb", display: "block" }} />
+                    {photoAnalyzing && (
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(109,40,217,.7)", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                        <span className="spinner" style={{ width: 22, height: 22, borderWidth: 3, borderColor: "rgba(255,255,255,.3)", borderTopColor: "white" }} />
+                        <span style={{ fontSize: 10, color: "white", fontWeight: 800, letterSpacing: ".5px" }}>AI</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!photoPreview && photoAnalyzing && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#7c3aed", fontWeight: 600 }}>
+                    <span className="spinner" style={{ width: 16, height: 16, borderColor: "#ddd6fe", borderTopColor: "#7c3aed" }} /> Analysing photo…
+                  </div>
+                )}
               </div>
             </div>
 

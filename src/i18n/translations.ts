@@ -8,6 +8,7 @@ export type TKey =
   | "title" | "subtitle" | "helpCenters" | "policeStations" | "support"
   | "sosBtn" | "sosSentTitle" | "sosSentMsg" | "sosHint" | "sosChatMsg"
   | "lookingForSomeone" | "lookingSubtext" | "iAmLost" | "iAmLostSubtext"
+  | "speakForHelp" | "speakSubtext"
   | "nearestCenters" | "volunteer" | "helpDesk" | "gettingLocation"
   // I-am-lost screen
   | "iAmLostTitle" | "weWillFind" | "phoneOptional" | "phoneSub"
@@ -41,6 +42,8 @@ const en: Translations = {
   lookingSubtext: "मैं किसी को ढूंढ रहा हूँ",
   iAmLost: "I am lost",
   iAmLostSubtext: "मैं खो गया हूँ / मी हरवलो आहे",
+  speakForHelp: "Speak for Help",
+  speakSubtext: "Can't type? Press & speak",
   nearestCenters: "📍 Nearest Help Centers",
   volunteer: "Volunteer →",
   helpDesk: "Help Desk →",
@@ -93,6 +96,8 @@ const mr: Translations = {
   lookingSubtext: "मला माझ्या कुटुंबाला शोधायचे आहे",
   iAmLost: "मी हरवलो आहे",
   iAmLostSubtext: "कृपया मला मदत करा",
+  speakForHelp: "बोलून मदत मिळवा",
+  speakSubtext: "टाइप करता येत नाही? बोला",
   nearestCenters: "📍 जवळची मदत केंद्रे",
   volunteer: "स्वयंसेवक →",
   helpDesk: "मदत डेस्क →",
@@ -145,6 +150,8 @@ const hi: Translations = {
   lookingSubtext: "मुझे अपने परिवार की तलाश है",
   iAmLost: "मैं खो गया हूँ",
   iAmLostSubtext: "कृपया मेरी मदद करें",
+  speakForHelp: "बोलकर मदद पाएं",
+  speakSubtext: "टाइप नहीं कर सकते? बोलें",
   nearestCenters: "📍 निकटतम सहायता केंद्र",
   volunteer: "स्वयंसेवक →",
   helpDesk: "सहायता डेस्क →",
@@ -197,6 +204,8 @@ const gu: Translations = {
   lookingSubtext: "મારે મારા પરિવારને શોધવો છે",
   iAmLost: "હું ખોવાઈ ગયો છું",
   iAmLostSubtext: "કૃપા કરીને મને મદદ કરો",
+  speakForHelp: "બોલીને મદદ મેળવો",
+  speakSubtext: "ટાઇપ ન કરી શકો? બોલો",
   nearestCenters: "📍 નજીકના સહાય કેન્દ્રો",
   volunteer: "સ્વયંસેવક →",
   helpDesk: "સહાય ડેસ્ક →",
@@ -249,6 +258,8 @@ const bn: Translations = {
   lookingSubtext: "আমার পরিবারকে খুঁজে পেতে চাই",
   iAmLost: "আমি হারিয়ে গেছি",
   iAmLostSubtext: "দয়া করে আমাকে সাহায্য করুন",
+  speakForHelp: "বলে সাহায্য পান",
+  speakSubtext: "টাইপ করতে পারছেন না? বলুন",
   nearestCenters: "📍 নিকটতম সহায়তা কেন্দ্র",
   volunteer: "স্বেচ্ছাসেবক →",
   helpDesk: "সহায়তা ডেস্ক →",
@@ -301,6 +312,8 @@ const te: Translations = {
   lookingSubtext: "నా కుటుంబాన్ని వెతకాలి",
   iAmLost: "నేను తప్పిపోయాను",
   iAmLostSubtext: "దయచేసి నాకు సహాయం చేయండి",
+  speakForHelp: "మాట్లాడి సహాయం పొందండి",
+  speakSubtext: "టైప్ చేయలేరా? మాట్లాడండి",
   nearestCenters: "📍 సమీప సహాయ కేంద్రాలు",
   volunteer: "వాలంటీర్ →",
   helpDesk: "సహాయ డెస్క్ →",
@@ -353,6 +366,8 @@ const ta: Translations = {
   lookingSubtext: "என் குடும்பத்தை தேட வேண்டும்",
   iAmLost: "நான் தொலைந்துவிட்டேன்",
   iAmLostSubtext: "தயவுசெய்து உதவுங்கள்",
+  speakForHelp: "பேசி உதவி பெறுங்கள்",
+  speakSubtext: "தட்டச்சு செய்ய முடியவில்லையா? பேசுங்கள்",
   nearestCenters: "📍 அருகிலுள்ள உதவி மையங்கள்",
   volunteer: "தன்னார்வலர் →",
   helpDesk: "உதவி மேசை →",
@@ -405,6 +420,8 @@ const pa: Translations = {
   lookingSubtext: "ਮੈਨੂੰ ਆਪਣੇ ਪਰਿਵਾਰ ਦੀ ਭਾਲ ਹੈ",
   iAmLost: "ਮੈਂ ਗੁੰਮ ਗਿਆ ਹਾਂ",
   iAmLostSubtext: "ਕਿਰਪਾ ਕਰਕੇ ਮੇਰੀ ਮਦਦ ਕਰੋ",
+  speakForHelp: "ਬੋਲ ਕੇ ਮਦਦ ਲਓ",
+  speakSubtext: "ਟਾਈਪ ਨਹੀਂ ਕਰ ਸਕਦੇ? ਬੋਲੋ",
   nearestCenters: "📍 ਨੇੜੇ ਦੇ ਸਹਾਇਤਾ ਕੇਂਦਰ",
   volunteer: "ਵਲੰਟੀਅਰ →",
   helpDesk: "ਮਦਦ ਡੈਸਕ →",

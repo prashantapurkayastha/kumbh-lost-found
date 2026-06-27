@@ -387,7 +387,7 @@ export default function HelpDeskPanel() {
             }
             onResult={handleAgentResult}
             placeholder={scenario === "family-reports" ? "Family member details…" : "Describe the person at your desk…"}
-            showVoice={false}
+            showVoice={true}
           />
         </div>
       )}

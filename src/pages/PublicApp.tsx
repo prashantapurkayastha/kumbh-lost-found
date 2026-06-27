@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { SearchPersonIcon, LostPersonIcon, MicLargeIcon, PersonMaleIcon, PersonFemaleIcon, PersonUnknownIcon, HelpDeskIcon, VolunteerIcon, ReunionIcon } from "../components/Icons";
 import { useLanguage } from "../context/LanguageContext";
 import MapView, { type MapMarker, type RouteTarget, type CctvPoint, type ChokepointData } from "../components/MapView";
 import cctvData from "../data/cctv.json";
@@ -69,7 +70,7 @@ function MarkdownView({ text }: { text: string }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screens
-type Screen = "landing" | "language" | "i-am-lost" | "report-missing" | "match-check" | "chat" | "result";
+type Screen = "landing" | "language" | "i-am-lost" | "report-missing" | "match-check" | "chat" | "result" | "voice-first";
 type FlowType = "i-am-lost" | "report-missing";
 
 // Auto-proceeds after showing "no match found" message
@@ -92,6 +93,153 @@ function MatchCheckEmpty({ onProceed }: { onProceed: () => void }) {
         {step >= 2 ? "⚠️ No match found yet — opening chat to file a report" : "⏳ Cross-referencing descriptions…"}
       </div>
       <div className="spinner" style={{ margin: "0 auto", width: 24, height: 24 }} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VoiceFirstScreen — press-and-hold to speak, no typing needed
+// ─────────────────────────────────────────────────────────────────────────────
+function VoiceFirstScreen({
+  lang, onBack, onTranscript,
+}: { lang: string; onBack: () => void; onTranscript: (text: string) => void }) {
+  const [listening, setListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const recogRef = useRef<unknown>(null);
+
+  type AnySR = {
+    lang: string; interimResults: boolean; maxAlternatives: number; continuous: boolean;
+    onresult: ((e: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => void) | null;
+    onerror: (() => void) | null; onend: (() => void) | null;
+    start: () => void; stop: () => void;
+  };
+  type WW = Window & { SpeechRecognition?: new () => AnySR; webkitSpeechRecognition?: new () => AnySR };
+
+  const LANG_CODES: Record<string, string> = {
+    hi: "hi-IN", mr: "mr-IN", en: "en-IN", gu: "gu-IN", bn: "bn-IN",
+    te: "te-IN", ta: "ta-IN", pa: "pa-IN", kn: "kn-IN",
+  };
+
+  function startListening() {
+    const w = window as WW;
+    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!Ctor) { setError("Voice not supported in this browser. Please type instead."); return; }
+    const sr = new Ctor();
+    sr.lang = LANG_CODES[lang] ?? "hi-IN";
+    sr.interimResults = true;
+    sr.maxAlternatives = 1;
+    sr.continuous = true;
+    sr.onresult = (e) => {
+      let text = "";
+      for (let i = 0; i < Object.keys(e.results).length; i++) text += e.results[i][0].transcript + " ";
+      setTranscript(text.trim());
+    };
+    sr.onerror = () => { setError("Could not capture audio. Please try again."); setListening(false); };
+    sr.onend = () => setListening(false);
+    sr.start();
+    recogRef.current = sr;
+    setListening(true);
+    setError("");
+  }
+
+  function stopListening() {
+    (recogRef.current as AnySR | null)?.stop();
+    setListening(false);
+  }
+
+  return (
+    <div className="page" style={{ background: "linear-gradient(180deg,#f5f3ff 0%,#ede9fe 100%)" }}>
+      <div className="page-header" style={{ background: "transparent", borderBottom: "1px solid #ddd6fe" }}>
+        <button onClick={onBack} style={{ fontSize: 20, background: "none", color: "#5b21b6" }}>←</button>
+        <div style={{ fontWeight: 700, fontSize: 15, color: "#5b21b6" }}>Speak for Help · बोलकर मदद पाएं</div>
+        <div />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 20px", gap: 24, flex: 1 }}>
+        {/* Big illustrated instruction */}
+        <div style={{ textAlign: "center" }}>
+          <MicLargeIcon size={80} color="#7c3aed" />
+          <div style={{ marginTop: 16, fontSize: 20, fontWeight: 700, color: "#4c1d95" }}>
+            {listening ? "Listening… · सुन रहे हैं…" : "Press & Hold · दबाएं और बोलें"}
+          </div>
+          <div style={{ fontSize: 14, color: "#6d28d9", marginTop: 6 }}>
+            Speak in any language · किसी भी भाषा में बोलें
+          </div>
+        </div>
+
+        {/* Big mic button */}
+        <button
+          onMouseDown={startListening}
+          onMouseUp={stopListening}
+          onTouchStart={startListening}
+          onTouchEnd={stopListening}
+          style={{
+            width: 120, height: 120, borderRadius: "50%",
+            background: listening ? "#7c3aed" : "#ede9fe",
+            border: `4px solid ${listening ? "#5b21b6" : "#c4b5fd"}`,
+            cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: listening ? "0 0 0 16px rgba(124,58,237,.2), 0 0 0 32px rgba(124,58,237,.08)" : "0 4px 16px rgba(124,58,237,.2)",
+            transition: "all .2s",
+            userSelect: "none",
+          }}
+        >
+          <MicLargeIcon size={56} color={listening ? "white" : "#7c3aed"} />
+        </button>
+
+        {listening && (
+          <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 14, color: "#7c3aed", fontWeight: 600 }}>
+            <span className="spinner" style={{ borderColor: "#ddd6fe", borderTopColor: "#7c3aed", width: 16, height: 16 }} />
+            Recording… release when done
+          </div>
+        )}
+
+        {/* Transcript */}
+        {transcript && (
+          <div style={{ width: "100%", background: "white", borderRadius: 12, padding: 16, border: "2px solid #c4b5fd" }}>
+            <div style={{ fontSize: 12, color: "#6d28d9", fontWeight: 700, marginBottom: 6 }}>What you said:</div>
+            <div style={{ fontSize: 15, color: "#1e293b", lineHeight: 1.6 }}>{transcript}</div>
+          </div>
+        )}
+
+        {error && <div style={{ color: "#dc2626", fontSize: 13, textAlign: "center" }}>{error}</div>}
+
+        {/* Actions */}
+        {transcript && !done && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
+            <button
+              onClick={() => { setDone(true); onTranscript(transcript); }}
+              style={{ width: "100%", padding: "14px", background: "#7c3aed", color: "white", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" }}
+            >
+              ✅ Send this — अभी भेजें
+            </button>
+            <button
+              onClick={() => { setTranscript(""); setDone(false); }}
+              style={{ width: "100%", padding: "12px", background: "white", color: "#6d28d9", border: "2px solid #c4b5fd", borderRadius: 12, fontSize: 14, cursor: "pointer" }}
+            >
+              🔄 Try again — फिर बोलें
+            </button>
+          </div>
+        )}
+
+        {/* Illustration of the flow */}
+        {!transcript && !listening && (
+          <div style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 8 }}>
+            {[
+              { icon: <MicLargeIcon size={28} color="#7c3aed" />, label: "Speak · बोलें" },
+              { icon: <SearchPersonIcon size={28} color="#1d4ed8" />, label: "We search · खोजेंगे" },
+              { icon: <ReunionIcon size={28} color="#16a34a" />, label: "Reunite · मिलेंगे" },
+            ].map((s, i) => (
+              <div key={i} style={{ background: "white", borderRadius: 10, padding: "12px 8px", textAlign: "center", border: "1px solid #ddd6fe" }}>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>{s.icon}</div>
+                <div style={{ fontSize: 11, color: "#5b21b6", fontWeight: 600 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -517,38 +665,47 @@ export default function PublicApp() {
           <div className="divider" />
 
           {/* Main action buttons */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button
-              onClick={() => {
-                setFlowType("report-missing");
-                setScreen("report-missing");
-              }}
-              className="btn btn-primary btn-full btn-lg"
+              onClick={() => { setFlowType("report-missing"); setScreen("report-missing"); }}
+              className="btn btn-primary btn-full"
+              style={{ padding: "16px 18px", alignItems: "center", gap: 14, border: "none", borderRadius: 14, background: "linear-gradient(135deg,#1d4ed8,#2563eb)" }}
             >
-              <span style={{ fontSize: 22 }}>🔍</span>
-              <div style={{ textAlign: "left" }}>
-                <div>{t("lookingForSomeone", lang)}</div>
-                <div style={{ fontSize: 12, fontWeight: 400, opacity: .85 }}>
-                  {t("lookingSubtext", lang)}
-                </div>
+              <SearchPersonIcon size={44} color="white" />
+              <div style={{ textAlign: "left", flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{t("lookingForSomeone", lang)}</div>
+                <div style={{ fontSize: 12, fontWeight: 400, opacity: .85, marginTop: 2 }}>{t("lookingSubtext", lang)}</div>
               </div>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M7 4l6 6-6 6" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
 
             <button
-              onClick={() => {
-                setFlowType("i-am-lost");
-                setScreen("i-am-lost");
-              }}
-              className="btn btn-ghost btn-full btn-lg"
-              style={{ border: "2px solid #f97316", color: "#f97316" }}
+              onClick={() => { setFlowType("i-am-lost"); setScreen("i-am-lost"); }}
+              className="btn btn-full"
+              style={{ padding: "16px 18px", alignItems: "center", gap: 14, border: "2.5px solid #f97316", borderRadius: 14, background: "#fff8f4", color: "#c2410c", display: "flex" }}
             >
-              <span style={{ fontSize: 22 }}>🙋</span>
-              <div style={{ textAlign: "left" }}>
-                <div>{t("iAmLost", lang)}</div>
-                <div style={{ fontSize: 12, fontWeight: 400, opacity: .85 }}>
-                  {t("iAmLostSubtext", lang)}
-                </div>
+              <LostPersonIcon size={44} color="#f97316" />
+              <div style={{ textAlign: "left", flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#c2410c" }}>{t("iAmLost", lang)}</div>
+                <div style={{ fontSize: 12, fontWeight: 400, color: "#92400e", marginTop: 2 }}>{t("iAmLostSubtext", lang)}</div>
               </div>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M7 4l6 6-6 6" stroke="#f97316" strokeWidth="2" strokeLinecap="round"/></svg>
+            </button>
+
+            {/* Voice-first button for illiterate users */}
+            <button
+              onClick={() => setScreen("voice-first" as Screen)}
+              className="btn btn-full"
+              style={{ padding: "14px 18px", alignItems: "center", gap: 14, border: "2px solid #7c3aed", borderRadius: 14, background: "#f5f3ff", color: "#6d28d9", display: "flex" }}
+            >
+              <div style={{ width: 44, height: 44, background: "#7c3aed", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <MicLargeIcon size={28} color="white" />
+              </div>
+              <div style={{ textAlign: "left", flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#5b21b6" }}>{t("speakForHelp", lang) ?? "Speak for Help"}</div>
+                <div style={{ fontSize: 12, fontWeight: 400, color: "#7c3aed", marginTop: 2 }}>{t("speakSubtext", lang) ?? "Can't type? Speak your situation"}</div>
+              </div>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M7 4l6 6-6 6" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
           </div>
 
@@ -649,6 +806,16 @@ export default function PublicApp() {
         </div>
       </div>
     );
+  }
+
+  // VOICE-FIRST — for illiterate / non-typing users
+  if (screen === "voice-first") {
+    return <VoiceFirstScreen lang={lang} onBack={() => setScreen("landing")} onTranscript={(text) => {
+      // Feed transcript into the chat as a "report-missing" message
+      setFlowType("report-missing");
+      setMissingDescription(text);
+      setScreen("chat");
+    }} />;
   }
 
   // I AM LOST — collect phone + confirm language before chat

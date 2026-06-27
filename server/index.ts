@@ -249,6 +249,15 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
+// ── Periodic PII redaction (DPDP compliance) ─────────────────────────────────
+// Runs at startup and every 30 minutes thereafter
+function runPIIRedaction() {
+  const count = store.redactExpiredPII();
+  if (count > 0) console.log(`[pii-purge] Redacted PII from ${count} resolved report(s)`);
+}
+runPIIRedaction();
+setInterval(runPIIRedaction, 30 * 60 * 1000);
+
 app.listen(PORT, () => {
   console.log(`[server] running on http://localhost:${PORT}`);
   console.log(`[server] API key: ${process.env.ANTHROPIC_API_KEY ? "✓ configured" : "✗ MISSING — set ANTHROPIC_API_KEY in .env"}`);

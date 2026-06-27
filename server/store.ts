@@ -235,6 +235,7 @@ export const store = {
   },
 
   getAllMissingReports(): MissingReport[] {
+    this.redactExpiredPII();
     return state.missingReports
       .filter((r) => notExpired(r) && r.status === "active");
   },
@@ -404,11 +405,31 @@ export const store = {
     // Resolve the report and mark found person reunited
     report.status = "resolved";
     report.matchedFoundPersonId = fpId;
+    // Schedule PII deletion 36h after resolution (DPDP compliance)
+    report.piiDeletesAt = new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString();
     const fp = state.foundPersons.find((p) => p.id === fpId);
     if (fp) fp.status = "reunited";
 
     persist(state);
     return { ok: true, log };
+  },
+
+  // ── Redact PII from resolved records past 36h deadline ───────────────────
+  redactExpiredPII(): number {
+    const now = Date.now();
+    let count = 0;
+    for (const r of state.missingReports) {
+      if (r.piiRedacted) continue;
+      if (!r.piiDeletesAt) continue;
+      if (new Date(r.piiDeletesAt).getTime() > now) continue;
+      r.contactNumber = undefined;
+      r.reportedBy = "[redacted]";
+      r.photoBase64 = undefined;
+      r.piiRedacted = true;
+      count++;
+    }
+    if (count > 0) persist(state);
+    return count;
   },
 
   // ── Search (copied from registry.ts) ─────────────────────────────────────

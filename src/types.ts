@@ -101,6 +101,10 @@ export interface MissingReport {
   suspicionFlag?: boolean;
   suspicionNotes?: string;
   held?: boolean; // record put on hold pending police review
+  /** ISO timestamp: when to redact PII (36h after resolution) */
+  piiDeletesAt?: string;
+  /** True once PII has been redacted */
+  piiRedacted?: boolean;
 }
 
 export interface HandoverLog {

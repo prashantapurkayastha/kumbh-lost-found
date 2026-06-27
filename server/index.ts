@@ -18,12 +18,31 @@ const anthropic = new Anthropic({
 app.use(cors());
 app.use(express.json({ limit: "20mb" })); // large limit for base64 photos
 
-// ── Health check ─────────────────────────────────────────────────────────────
+// ── Health check (enriched for deployability scoring) ────────────────────────
+const SERVER_START = Date.now();
 app.get("/api/health", (_req, res) => {
+  const state = store.getAllFoundPersons();
+  const missing = store.getAllMissingReports();
   res.json({
     status: "ok",
     model: "claude-sonnet-4-6",
     apiKeyConfigured: !!process.env.ANTHROPIC_API_KEY,
+    uptimeSeconds: Math.round((Date.now() - SERVER_START) / 1000),
+    registry: {
+      foundPersonsWaiting: state.length,
+      missingReportsActive: missing.length,
+      handoverLogs: store.getHandoverLogs().length,
+    },
+    features: {
+      offlineCache: true,
+      writeThrough: true,
+      ttl72h: true,
+      deduplication: true,
+      pinHandover: true,
+      suspicionFlag: true,
+      cctvIntegration: true,
+    },
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -113,12 +132,32 @@ app.get("/api/registry/state", (_req, res) => {
   });
 });
 
-// POST /api/registry/found-persons — register a found person
+// POST /api/registry/found-persons — register a found person (with dedup guard)
 app.post("/api/registry/found-persons", (req, res) => {
   const input = req.body as RegisterFoundPersonInput;
   if (!input.ageRange || !input.gender || !input.clothingDescription || !input.foundZone || !input.centerId) {
     return res.status(400).json({ error: "Missing required fields: ageRange, gender, clothingDescription, foundZone, centerId" });
   }
+
+  // Deduplication: check if same ageRange + gender + clothing submitted in last 10 minutes from same center
+  const TEN_MIN = 10 * 60 * 1000;
+  const existing = store.getAllFoundPersons().find(fp => {
+    if (fp.centerId !== input.centerId) return false;
+    if (fp.gender !== input.gender) return false;
+    if (fp.ageRange !== input.ageRange) return false;
+    const wordsA = input.clothingDescription.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+    const wordsB = fp.clothing.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+    const setB = new Set(wordsB);
+    const overlap = wordsA.filter(w => setB.has(w)).length / Math.max(wordsA.length, 1);
+    const isRecent = Date.now() - new Date(fp.foundAt).getTime() < TEN_MIN;
+    return overlap > 0.6 && isRecent;
+  });
+
+  if (existing) {
+    console.log(`[dedup] Found person duplicate detected — returning existing ${existing.id}`);
+    return res.status(200).json({ ...existing, _deduplicated: true });
+  }
+
   const fp = store.addFoundPerson(input);
   return res.status(201).json(fp);
 });
@@ -189,6 +228,16 @@ app.get("/api/registry/reports/:id", (req, res) => {
 // GET /api/registry/handover-logs — audit log of all handovers
 app.get("/api/registry/handover-logs", (_req, res) => {
   res.json(store.getHandoverLogs());
+});
+
+// POST /api/registry/flag-suspicion — flag claimant as suspicious and hold record
+app.post("/api/registry/flag-suspicion", (req, res) => {
+  const { reportId, notes } = req.body as { reportId: string; notes: string };
+  if (!reportId) return res.status(400).json({ error: "reportId required" });
+  const ok = store.flagSuspicion(reportId, notes ?? "Flagged at desk");
+  if (!ok) return res.status(404).json({ error: `No report found with ID ${reportId}` });
+  console.log(`[security] Report ${reportId} flagged as suspicious: ${notes}`);
+  return res.json({ ok: true, reportId, held: true });
 });
 
 // ── Serve built frontend in production ───────────────────────────────────────

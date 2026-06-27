@@ -24,6 +24,43 @@ import type {
 
 const API = "/api/registry";
 
+// ── Offline cache ─────────────────────────────────────────────────────────────
+const CACHE_KEY = "kumbh_registry_cache";
+const CACHE_TS_KEY = "kumbh_registry_cache_ts";
+
+export type SyncStatus = "online" | "offline" | "unknown";
+let _syncStatus: SyncStatus = "unknown";
+let _lastSyncTime: number | null = null;
+
+/** Current connectivity status as seen by the registry sync */
+export function getSyncStatus(): SyncStatus { return _syncStatus; }
+export function getLastSyncTime(): number | null { return _lastSyncTime; }
+
+function saveToCache(data: unknown) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+  } catch { /* storage full — silently ignore */ }
+}
+
+function loadFromCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    const ts = localStorage.getItem(CACHE_TS_KEY);
+    if (!raw) return null;
+    return { data: JSON.parse(raw), ts: ts ? Number(ts) : null };
+  } catch {
+    return null;
+  }
+}
+
+function emitSyncStatus(status: SyncStatus) {
+  if (_syncStatus !== status) {
+    _syncStatus = status;
+    window.dispatchEvent(new CustomEvent("registry:sync-status", { detail: { status, lastSyncTime: _lastSyncTime } }));
+  }
+}
+
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function get<T>(path: string): Promise<T | null> {
@@ -62,7 +99,25 @@ export async function syncFromServer(): Promise<boolean> {
     completedReunions: CompletedReunion[];
   }>("/state");
 
-  if (!data) return false; // server unreachable — local state stands
+  if (!data) {
+    // Server unreachable — try localStorage cache
+    const cached = loadFromCache();
+    if (cached?.data) {
+      registry.loadFoundPersons(cached.data.foundPersons ?? []);
+      registry.loadMissingReports(cached.data.missingReports ?? []);
+      registry.loadHelpCenters(cached.data.helpCenters ?? []);
+      registry.loadPoliceStations(cached.data.policeStations ?? []);
+      registry.loadReunionPoints(cached.data.reunionPoints ?? []);
+      registry.loadCompletedReunions(cached.data.completedReunions ?? []);
+    }
+    emitSyncStatus("offline");
+    return false;
+  }
+
+  // Successful sync — save to cache for offline fallback
+  saveToCache(data);
+  _lastSyncTime = Date.now();
+  emitSyncStatus("online");
 
   registry.loadFoundPersons(data.foundPersons ?? []);
   registry.loadMissingReports(data.missingReports ?? []);
@@ -145,6 +200,13 @@ export async function logHandoverSync(
   // Fallback: local-only
   registry.logHandover(reportId, fpId, centerId, operatorId);
   return false;
+}
+
+/** Flag a suspicious claimant — mirrors to server, falls back to local */
+export async function flagSuspicionSync(reportId: string, notes: string): Promise<boolean> {
+  registry.flagSuspicion(reportId, notes);
+  const result = await post("/flag-suspicion", { reportId, notes });
+  return !!result;
 }
 
 // ── Start polling ─────────────────────────────────────────────────────────────

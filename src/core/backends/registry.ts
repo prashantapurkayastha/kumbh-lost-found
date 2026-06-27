@@ -266,6 +266,14 @@ export const registry = {
       status: "waiting",
       is_potential_duplicate: false,
       expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+      // Care disposition
+      disposition: input.disposition ?? "active",
+      dispositionNotes: input.dispositionNotes,
+      familyExpected: input.familyExpected ?? true,
+      // Minor flags
+      isMinorUnaccompanied: input.isMinorUnaccompanied ?? false,
+      childKnowsName: input.childKnowsName,
+      childHometown: input.childHometown,
     };
 
     foundPersons.push(fp);
@@ -314,6 +322,24 @@ export const registry = {
 
   getMissingReportById(id: string): MissingReport | undefined {
     return missingReports.find(r => r.id === id);
+  },
+
+  /** Flag a claimant as suspicious — puts the report on hold and logs reason */
+  flagSuspicion(reportId: string, notes: string): boolean {
+    const report = missingReports.find(r => r.id === reportId);
+    if (!report) return false;
+    report.suspicionFlag = true;
+    report.suspicionNotes = notes;
+    report.held = true;
+    return true;
+  },
+
+  /** Clear a hold from a report */
+  clearHold(reportId: string): boolean {
+    const report = missingReports.find(r => r.id === reportId);
+    if (!report) return false;
+    report.held = false;
+    return true;
   },
 
   getFoundPersonById(id: string): FoundPerson | undefined {

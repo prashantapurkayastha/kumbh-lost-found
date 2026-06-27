@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { registry } from "../core/backends/registry";
 import MapView, { type RouteTarget } from "../components/MapView";
@@ -244,6 +244,7 @@ function FoundCard({
 export default function MissingRegistry() {
   const navigate = useNavigate();
   const topRef = useRef<HTMLDivElement>(null);
+  const photoSearchRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>("missing");
   const [showFoundSomeone, setShowFoundSomeone] = useState(false);
   const [search, setSearch] = useState("");
@@ -251,6 +252,87 @@ export default function MissingRegistry() {
   const [missingReports, setMissingReports] = useState<MissingReport[]>([]);
   const [routeTo, setRouteTo] = useState<(RouteTarget & { center: HelpCenter }) | null>(null);
   const centers = registry.getHelpCenters();
+
+  // Photo similarity search
+  const [photoSearchActive, setPhotoSearchActive] = useState(false);
+  const [photoSearching, setPhotoSearching] = useState(false);
+  const [photoMatches, setPhotoMatches] = useState<(FoundPerson & { photoScore: number; photoMatchReason: string })[] | null>(null);
+
+  const handlePhotoSearch = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoSearching(true);
+    setPhotoMatches(null);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const mediaType = file.type as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+      const res = await fetch("/api/claude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          max_tokens: 512,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+              { type: "text", text: 'Describe this person for identity matching at a lost & found. Return JSON only: {"ageRange":"child|teen|young adult|adult|elderly","gender":"male|female|unknown","clothing":"...","distinguishingFeatures":"...","skinTone":"...","height":"short|medium|tall|unknown"}' },
+            ],
+          }],
+        }),
+      });
+      if (!res.ok) throw new Error("Vision API error");
+      const data = await res.json();
+      const text: string = data?.content?.[0]?.text ?? "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON in vision response");
+      const parsed = JSON.parse(jsonMatch[0]) as { ageRange?: string; gender?: string; clothing?: string; distinguishingFeatures?: string };
+
+      // Score all waiting persons using extracted features
+      const allWaiting = registry.getAllFoundPersons();
+      const scored = allWaiting.map(fp => {
+        let score = 0;
+        const reasons: string[] = [];
+        if (parsed.gender) {
+          const g = parsed.gender.toLowerCase();
+          const fpg = fp.gender.toLowerCase();
+          if ((g.includes("male") && !g.includes("female") && fpg === "male") || (g.includes("female") && fpg === "female")) {
+            score += 0.25; reasons.push("gender");
+          }
+        }
+        if (parsed.ageRange) {
+          const n = parsed.ageRange.toLowerCase();
+          const fpAge = fp.ageRange.toLowerCase();
+          if ((n.includes("child") && fpAge.includes("child")) || (n.includes("elderly") && fpAge.includes("elderly")) || (n.includes("adult") && fpAge.includes("adult"))) {
+            score += 0.25; reasons.push("age");
+          }
+        }
+        if (parsed.clothing) {
+          const words = (s: string) => s.toLowerCase().split(/\W+/).filter(w => w.length > 2);
+          const queryWords = new Set(words(parsed.clothing + " " + (parsed.distinguishingFeatures ?? "")));
+          const fpWords = words(fp.clothing);
+          const overlap = fpWords.filter(w => queryWords.has(w)).length;
+          const clothScore = overlap / Math.max(fpWords.length, 1);
+          score += clothScore * 0.5;
+          if (clothScore > 0.2) reasons.push(`clothing (${Math.round(clothScore * 100)}%)`);
+        }
+        return { ...fp, photoScore: Math.min(score, 1), photoMatchReason: reasons.join(", ") };
+      }).filter(m => m.photoScore >= 0.25).sort((a, b) => b.photoScore - a.photoScore).slice(0, 5);
+
+      setPhotoMatches(scored);
+      setTab("found");
+    } catch {
+      setPhotoMatches([]);
+    } finally {
+      setPhotoSearching(false);
+      setPhotoSearchActive(true);
+      if (photoSearchRef.current) photoSearchRef.current.value = "";
+    }
+  }, []);
 
   // Live-refresh every 3 seconds
   useEffect(() => {
@@ -323,15 +405,34 @@ export default function MissingRegistry() {
       </div>
 
       {/* Search */}
-      <div style={{ padding: "10px 16px", background: "white", borderBottom: "1px solid #e7e5e4" }}>
+      <div style={{ padding: "10px 16px", background: "white", borderBottom: "1px solid #e7e5e4", display: "flex", gap: 8, alignItems: "center" }}>
         <input
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setPhotoSearchActive(false); setPhotoMatches(null); }}
           placeholder="🔍 Search by name, clothing, location…"
           className="input"
-          style={{ margin: 0 }}
+          style={{ margin: 0, flex: 1 }}
         />
+        <input ref={photoSearchRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoSearch} />
+        <button
+          onClick={() => photoSearchRef.current?.click()}
+          disabled={photoSearching}
+          title="Search by photo (AI-powered)"
+          style={{ padding: "8px 10px", background: photoSearchActive ? "#dbeafe" : "#f3f4f6", border: `1.5px solid ${photoSearchActive ? "#2563eb" : "#d1d5db"}`, borderRadius: 8, cursor: photoSearching ? "wait" : "pointer", fontSize: 18, lineHeight: 1, flexShrink: 0 }}
+        >
+          {photoSearching ? "⏳" : "📷"}
+        </button>
       </div>
+
+      {/* Photo search results banner */}
+      {photoSearchActive && (
+        <div style={{ padding: "8px 16px", background: photoMatches && photoMatches.length > 0 ? "#dbeafe" : "#fef2f2", borderBottom: "1px solid #e7e5e4", fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>
+            {photoSearching ? "🔍 Analyzing photo with AI…" : photoMatches && photoMatches.length > 0 ? `📷 ${photoMatches.length} photo match${photoMatches.length > 1 ? "es" : ""} found (AI-powered)` : "📷 No strong photo matches found — try text search"}
+          </span>
+          <button onClick={() => { setPhotoSearchActive(false); setPhotoMatches(null); }} style={{ fontSize: 12, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>✕ Clear</button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="tab-nav">
@@ -374,6 +475,26 @@ export default function MissingRegistry() {
 
         {tab === "found" && (
           <>
+            {/* Photo match results */}
+            {photoSearchActive && photoMatches && photoMatches.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#1d4ed8", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>📷 Photo Match Results</span>
+                  <span style={{ fontSize: 11, fontWeight: 400, color: "#6b7280" }}>(ranked by AI similarity)</span>
+                </div>
+                {photoMatches.map(fp => (
+                  <div key={fp.id} style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", marginBottom: 3 }}>
+                      {Math.round(fp.photoScore * 100)}% match — {fp.photoMatchReason}
+                    </div>
+                    <FoundCard fp={fp} centers={centers} onGetDirections={handleGetDirections} />
+                  </div>
+                ))}
+                <div style={{ height: 1, background: "#e5e7eb", margin: "12px 0" }} />
+                <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 700, marginBottom: 8 }}>All persons at centers:</div>
+              </div>
+            )}
+
             {filteredFound.length === 0 ? (
               <div style={{ textAlign: "center", padding: "40px 20px", color: "#a8a29e" }}>
                 <div style={{ fontSize: 40 }}>🏥</div>

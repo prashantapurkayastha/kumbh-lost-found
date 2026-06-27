@@ -6,6 +6,7 @@ import { getUserLocation, type UserLocation } from "../services/location";
 import { sendSMS } from "../services/sms";
 import { notifyBackend } from "../core/backends/notify";
 import { registry } from "../core/backends/registry";
+import { flagSuspicionSync, getSyncStatus, getLastSyncTime } from "../core/backends/registrySync";
 import { useOnline } from "../hooks/useOnline";
 import { computeHotspots } from "../services/hotspots";
 import { haversineKm } from "../core/backends/geo";
@@ -167,7 +168,13 @@ export default function HelpDeskPanel() {
 
   return (
     <div className="page">
-      {!isOnline && <div className="offline-banner">⚠️ Offline — operations queued</div>}
+      {(!isOnline || getSyncStatus() === "offline") && (
+        <div className="offline-banner">
+          ⚡ Offline — showing cached registry
+          {getLastSyncTime() ? ` (last sync ${Math.round((Date.now() - getLastSyncTime()!) / 60000)}m ago)` : " — no cache yet"}
+          {" "}· Writes queued
+        </div>
+      )}
 
       {/* Header */}
       <div className="panel-header" style={{ background: "#1d4ed8" }}>
@@ -241,23 +248,42 @@ export default function HelpDeskPanel() {
               {allFound.slice(0, 8).map((fp) => {
                 const matches = registry.searchMissingReports(fp);
                 const hasMatch = matches.length > 0;
+                const isCareCase = fp.disposition && fp.disposition !== "active";
+                const isMinorFlag = fp.isMinorUnaccompanied;
                 return (
-                  <div key={fp.id} className="notif-item" style={{ borderLeft: hasMatch ? "3px solid #f97316" : undefined, background: hasMatch ? "#fff8f4" : undefined, borderRadius: hasMatch ? 6 : undefined, alignItems: "flex-start" }}>
+                  <div key={fp.id} className="notif-item" style={{
+                    borderLeft: isCareCase ? "3px solid #7c3aed" : isMinorFlag ? "3px solid #dc2626" : hasMatch ? "3px solid #f97316" : undefined,
+                    background: isCareCase ? "#f5f3ff" : isMinorFlag ? "#fef2f2" : hasMatch ? "#fff8f4" : undefined,
+                    borderRadius: 6, alignItems: "flex-start"
+                  }}>
                     {fp.photoBase64 && (
                       <img src={`data:image/jpeg;base64,${fp.photoBase64}`} alt="Person" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 6, flexShrink: 0, border: "1px solid #e5e7eb", marginRight: 6 }} />
                     )}
-                    {!fp.photoBase64 && <div className="notif-dot" style={{ background: fp.condition === "distressed" ? "#dc2626" : "#16a34a" }} />}
+                    {!fp.photoBase64 && <div className="notif-dot" style={{ background: isCareCase ? "#7c3aed" : isMinorFlag ? "#dc2626" : fp.condition === "distressed" ? "#dc2626" : "#16a34a" }} />}
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 4 }}>
                         <span style={{ fontWeight: 700, fontSize: 13 }}>{fp.id}</span>
-                        <div style={{ display: "flex", gap: 4 }}>
-                          {hasMatch && <span style={{ fontSize: 10, background: "#f97316", color: "white", borderRadius: 10, padding: "1px 6px" }}>⚡ MATCH</span>}
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {isMinorFlag && <span style={{ fontSize: 10, background: "#dc2626", color: "white", borderRadius: 10, padding: "1px 6px" }}>👶 MINOR</span>}
+                          {isCareCase && <span style={{ fontSize: 10, background: "#7c3aed", color: "white", borderRadius: 10, padding: "1px 6px" }}>♿ {fp.disposition?.replace(/-/g, " ").toUpperCase()}</span>}
+                          {hasMatch && !isCareCase && <span style={{ fontSize: 10, background: "#f97316", color: "white", borderRadius: 10, padding: "1px 6px" }}>⚡ MATCH</span>}
                           <span className={`badge ${fp.condition === "distressed" ? "badge-red" : "badge-green"}`}>{fp.condition}</span>
                         </div>
                       </div>
                       <div style={{ fontSize: 12, color: "#57534e" }}>{fp.ageRange} {fp.gender} · {fp.clothing.slice(0, 40)}</div>
                       <div style={{ fontSize: 11, color: "#a8a29e" }}>{fp.centerName} · {fp.languageSpoken}</div>
-                      {hasMatch && (
+                      {isCareCase && fp.dispositionNotes && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: "#4c1d95", background: "#ede9fe", padding: "3px 6px", borderRadius: 4 }}>
+                          📋 {fp.dispositionNotes}
+                        </div>
+                      )}
+                      {isMinorFlag && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: "#b91c1c", background: "#fee2e2", padding: "3px 6px", borderRadius: 4 }}>
+                          ⚠️ Unaccompanied minor — police escort required for handover
+                          {fp.childHometown ? ` · From: ${fp.childHometown}` : ""}
+                        </div>
+                      )}
+                      {hasMatch && !isCareCase && (
                         <div style={{ marginTop: 4, fontSize: 11, color: "#c2410c", background: "#fff7ed", padding: "3px 6px", borderRadius: 4 }}>
                           ⚠️ Missing report {matches[0].missingReportId} ({Math.round(matches[0].confidence * 100)}% match)
                           {matches[0].contactNumber && <> · 📞 <a href={`tel:${matches[0].contactNumber}`} style={{ color: "#1d4ed8" }}>{matches[0].contactNumber}</a></>}
@@ -279,17 +305,19 @@ export default function HelpDeskPanel() {
                   lastSeenZone: mr.missingPerson.lastSeenLocation,
                 });
                 const hasMatch = matches.length > 0;
+                const isHeld = mr.held;
                 return (
-                  <div key={mr.id} className="notif-item" style={{ borderLeft: hasMatch ? "3px solid #16a34a" : undefined, background: hasMatch ? "#f0fdf4" : undefined, borderRadius: hasMatch ? 6 : undefined, alignItems: "flex-start" }}>
+                  <div key={mr.id} className="notif-item" style={{ borderLeft: isHeld ? "3px solid #dc2626" : hasMatch ? "3px solid #16a34a" : undefined, background: isHeld ? "#fef2f2" : hasMatch ? "#f0fdf4" : undefined, borderRadius: 6, alignItems: "flex-start" }}>
                     {mr.photoBase64 && (
                       <img src={`data:image/jpeg;base64,${mr.photoBase64}`} alt="Person" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 6, flexShrink: 0, border: "1px solid #e5e7eb", marginRight: 6 }} />
                     )}
-                    {!mr.photoBase64 && <div className="notif-dot" style={{ background: "#d97706" }} />}
+                    {!mr.photoBase64 && <div className="notif-dot" style={{ background: isHeld ? "#dc2626" : "#d97706" }} />}
                     <div style={{ flex: 1 }}>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span style={{ fontWeight: 700, fontSize: 13 }}>{mr.id}</span>
                         <div style={{ display: "flex", gap: 4 }}>
-                          {hasMatch && <span style={{ fontSize: 10, background: "#16a34a", color: "white", borderRadius: 10, padding: "1px 6px" }}>✅ FOUND</span>}
+                          {isHeld && <span style={{ fontSize: 10, background: "#dc2626", color: "white", borderRadius: 10, padding: "1px 6px" }}>🔒 HELD</span>}
+                          {hasMatch && !isHeld && <span style={{ fontSize: 10, background: "#16a34a", color: "white", borderRadius: 10, padding: "1px 6px" }}>✅ FOUND</span>}
                           {mr.is_duplicate_report && <span className="badge badge-amber">Linked</span>}
                         </div>
                       </div>
@@ -297,6 +325,9 @@ export default function HelpDeskPanel() {
                         {mr.missingPerson.name ?? "Unknown"} · {mr.missingPerson.ageRange} · {mr.missingPerson.clothing.slice(0, 35)}
                       </div>
                       <div style={{ fontSize: 11, color: "#a8a29e" }}>{mr.reportingCenter}</div>
+                      {isHeld && mr.suspicionNotes && (
+                        <div style={{ fontSize: 11, color: "#b91c1c", background: "#fee2e2", padding: "2px 6px", borderRadius: 4, marginTop: 3 }}>🚨 {mr.suspicionNotes}</div>
+                      )}
                       {hasMatch && (
                         <div style={{ marginTop: 4, fontSize: 11, color: "#15803d", background: "#f0fdf4", padding: "3px 6px", borderRadius: 4 }}>
                           ✅ Possible match: {matches[0].id} at {matches[0].centerName} ({Math.round(matches[0].confidence * 100)}%)
@@ -776,6 +807,9 @@ function VerifyHandover({ deskId }: { deskId: string }) {
   // Step 3 — PIN
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
+  const [suspicionNotes, setSuspicionNotes] = useState("");
+  const [suspicionFlagged, setSuspicionFlagged] = useState(false);
+  const [showSuspicionForm, setShowSuspicionForm] = useState(false);
 
   // Step 4 — Minor check
   const [policeEscortArranged, setPoliceEscortArranged] = useState(false);
@@ -859,6 +893,7 @@ function VerifyHandover({ deskId }: { deskId: string }) {
     setRefInput(""); setLookupError(""); setReport(null);
     setFpIdInput(""); setFpLookupError(""); setFoundPerson(null); setHoldingCenter(null);
     setPin(""); setPinError("");
+    setSuspicionNotes(""); setSuspicionFlagged(false); setShowSuspicionForm(false);
     setPoliceEscortArranged(false);
     setReunionPoint(null);
     setHandoverLog(null);
@@ -988,6 +1023,61 @@ function VerifyHandover({ deskId }: { deskId: string }) {
               🔐 Verify PIN
             </button>
           </form>
+
+          {/* Suspicion flag — adversarial claimant */}
+          {!suspicionFlagged ? (
+            <div style={{ marginTop: 16 }}>
+              {!showSuspicionForm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowSuspicionForm(true)}
+                  style={{ width: "100%", padding: "9px", background: "#fef2f2", color: "#b91c1c", border: "2px solid #fca5a5", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+                >
+                  🚨 Flag Suspicious Claimant
+                </button>
+              ) : (
+                <div style={{ background: "#fef2f2", border: "2px solid #dc2626", borderRadius: 10, padding: "14px" }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "#b91c1c", marginBottom: 8 }}>🚨 Flag as Suspicious — DO NOT release</div>
+                  <textarea
+                    style={{ width: "100%", padding: "8px 10px", border: "1px solid #fca5a5", borderRadius: 6, fontSize: 13, minHeight: 60, resize: "vertical", boxSizing: "border-box" }}
+                    placeholder="Describe the suspicious behaviour (e.g. can't confirm relationship, claimant nervous, story inconsistent)"
+                    value={suspicionNotes}
+                    onChange={e => setSuspicionNotes(e.target.value)}
+                  />
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!report) return;
+                        await flagSuspicionSync(report.id, suspicionNotes || "Flagged at handover desk");
+                        notifyBackend.send({
+                          centerId: deskId,
+                          centerName: "POLICE",
+                          message: `🚨 SUSPICIOUS CLAIMANT — Report ${report.id}. ${suspicionNotes || "Flagged at handover"}. Record put on hold. Do NOT release.`,
+                          urgency: "high",
+                        });
+                        setSuspicionFlagged(true);
+                        setShowSuspicionForm(false);
+                      }}
+                      disabled={!suspicionNotes.trim()}
+                      style={{ flex: 1, padding: "8px", background: "#dc2626", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+                    >
+                      🔒 Hold Record + Notify Police
+                    </button>
+                    <button type="button" onClick={() => setShowSuspicionForm(false)} style={{ padding: "8px 14px", background: "#f3f4f6", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13 }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ marginTop: 16, background: "#dc2626", color: "white", borderRadius: 10, padding: "14px", textAlign: "center" }}>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>🔒 Record HELD — Police Notified</div>
+              <div style={{ fontSize: 12, marginTop: 4, opacity: .9 }}>Do not release. Await police instructions.</div>
+              <a href="tel:100" style={{ display: "inline-block", marginTop: 8, color: "white", fontWeight: 700, textDecoration: "underline" }}>📞 Call Police 100</a>
+            </div>
+          )}
         </div>
       )}
 

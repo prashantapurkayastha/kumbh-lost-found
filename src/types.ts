@@ -61,6 +61,14 @@ export interface FoundPerson {
   status: "waiting" | "reunited" | "transferred";
   is_potential_duplicate: boolean;
   expiresAt?: string; // ISO timestamp — record auto-expires after 72 hours
+  // Abandoned elderly / care disposition
+  disposition?: "active" | "care-arranged" | "medical-referral" | "transferred-shelter";
+  dispositionNotes?: string;
+  familyExpected?: boolean;
+  // Child / minor flags
+  isMinorUnaccompanied?: boolean;
+  childKnowsName?: boolean;
+  childHometown?: string;
 }
 
 export interface MissingPersonInfo {
@@ -89,6 +97,10 @@ export interface MissingReport {
   /** 4-digit PIN shown to family; must be quoted in-person at desk before handover */
   verificationCode: string;
   expiresAt?: string; // ISO timestamp — record auto-expires after 72 hours
+  // Adversarial claimant flags
+  suspicionFlag?: boolean;
+  suspicionNotes?: string;
+  held?: boolean; // record put on hold pending police review
 }
 
 export interface HandoverLog {
@@ -166,6 +178,14 @@ export interface RegisterFoundPersonInput {
   condition?: "calm" | "distressed" | "injured" | "non-verbal";
   photoProvided?: boolean;
   photoBase64?: string;
+  // Care disposition for abandoned persons
+  disposition?: "active" | "care-arranged" | "medical-referral" | "transferred-shelter";
+  dispositionNotes?: string;
+  familyExpected?: boolean;
+  // Minor flags
+  isMinorUnaccompanied?: boolean;
+  childKnowsName?: boolean;
+  childHometown?: string;
 }
 
 export interface NotifyHelpDeskInput {

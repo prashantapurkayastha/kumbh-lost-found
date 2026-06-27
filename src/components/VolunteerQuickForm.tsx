@@ -2,6 +2,26 @@ import { useState, useRef } from "react";
 import { addFoundPersonSync, addMissingReportSync } from "../core/backends/registrySync";
 import type { RegisterFoundPersonInput, RegisterMissingPersonInput } from "../types";
 
+// ── Icon mode grids ──────────────────────────────────────────────────────────
+const AGE_ICONS: { value: string; icon: string; label: string }[] = [
+  { value: "child (0-12)", icon: "👶", label: "Child" },
+  { value: "teen (13-17)", icon: "🧒", label: "Teen" },
+  { value: "young adult (18-35)", icon: "🧑", label: "Young Adult" },
+  { value: "adult (36-60)", icon: "👤", label: "Adult" },
+  { value: "elderly (60+)", icon: "👴", label: "Elder" },
+];
+const GENDER_ICONS: { value: string; icon: string; label: string }[] = [
+  { value: "male", icon: "👨", label: "Male" },
+  { value: "female", icon: "👩", label: "Female" },
+  { value: "unknown", icon: "🧑", label: "Unknown" },
+];
+const CONDITION_ICONS: { value: string; icon: string; label: string }[] = [
+  { value: "calm", icon: "😊", label: "Calm" },
+  { value: "distressed", icon: "😟", label: "Distressed" },
+  { value: "injured", icon: "🤕", label: "Injured" },
+  { value: "non-verbal", icon: "😶", label: "Non-verbal" },
+];
+
 interface VolunteerQuickFormProps {
   mode: "found-person" | "help-family" | "help-person";
   centerId: string;
@@ -54,10 +74,24 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
   const [lastSeenZone, setLastSeenZone] = useState("");
   const [missingLanguage, setMissingLanguage] = useState<Language>("Hindi");
 
+  // Icon mode
+  const [iconMode, setIconMode] = useState(false);
+
+  // Abandoned elderly / care disposition (help-person mode)
+  const [familyExpected, setFamilyExpected] = useState(true);
+  const [disposition, setDisposition] = useState<"active" | "care-arranged" | "medical-referral" | "transferred-shelter">("active");
+  const [dispositionNotes, setDispositionNotes] = useState("");
+
+  // Child-specific fields (when age is child or teen)
+  const [childKnowsName, setChildKnowsName] = useState<boolean | null>(null);
+  const [childHometown, setChildHometown] = useState("");
+
   // Form state
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const isChild = ageRange === "child (0-12)" || ageRange === "teen (13-17)";
 
   const AGE_RANGES: AgeRange[] = ["child (0-12)", "teen (13-17)", "young adult (18-35)", "adult (36-60)", "elderly (60+)"];
   const GENDERS: Gender[] = ["male", "female", "unknown"];
@@ -313,6 +347,14 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
           condition,
           photoProvided: !!photoPreview,
           photoBase64: photoPreview?.split(",")[1] ?? undefined,
+          // Care disposition
+          familyExpected,
+          disposition: familyExpected ? "active" : disposition,
+          dispositionNotes: familyExpected ? undefined : dispositionNotes,
+          // Minor flags
+          isMinorUnaccompanied: isChild,
+          childKnowsName: isChild ? (childKnowsName ?? undefined) : undefined,
+          childHometown: isChild && childHometown ? childHometown : undefined,
         };
         const fp = await addFoundPersonSync(input);
         setSuccess(fp.id);
@@ -387,11 +429,50 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
             setReporterName("");
             setReporterPhone("");
             setLastSeenZone("");
+            setFamilyExpected(true);
+            setDisposition("active");
+            setDispositionNotes("");
+            setChildKnowsName(null);
+            setChildHometown("");
+            setIconMode(false);
           }}
           style={{ marginTop: 16, padding: "8px 16px", background: "#2563eb", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14 }}
         >
           + Register another
         </button>
+      </div>
+    );
+  }
+
+  // ── Icon mode selector component ────────────────────────────────────────
+  function IconGrid<T extends string>({
+    options, value, onChange,
+  }: {
+    options: { value: T; icon: string; label: string }[];
+    value: T;
+    onChange: (v: T) => void;
+  }) {
+    return (
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {options.map(o => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            style={{
+              flex: "1 1 60px",
+              padding: "10px 6px",
+              background: value === o.value ? "#dbeafe" : "#f3f4f6",
+              border: `2px solid ${value === o.value ? "#2563eb" : "#e5e7eb"}`,
+              borderRadius: 10,
+              cursor: "pointer",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: 22 }}>{o.icon}</div>
+            <div style={{ fontSize: 10, color: "#374151", marginTop: 2, fontWeight: value === o.value ? 700 : 400 }}>{o.label}</div>
+          </button>
+        ))}
       </div>
     );
   }
@@ -510,68 +591,96 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
         {/* ── FOUND-PERSON / HELP-PERSON mode ── */}
         {(mode === "found-person" || mode === "help-person") && (
           <>
-            <div style={{ marginBottom: 18, padding: "10px 14px", background: "#fff8f3", borderRadius: 8, fontSize: 13, color: "#92400e" }}>
-              {mode === "found-person" ? "👤 Registering an unaccompanied person found at this center." : "🙋 A person is lost and needs to be registered."}
+            <div style={{ marginBottom: 12, padding: "10px 14px", background: "#fff8f3", borderRadius: 8, fontSize: 13, color: "#92400e", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>{mode === "found-person" ? "👤 Registering an unaccompanied person." : "🙋 A person is lost and needs to be registered."}</span>
+              <button
+                type="button"
+                onClick={() => setIconMode(v => !v)}
+                style={{ fontSize: 11, padding: "4px 10px", background: iconMode ? "#1d4ed8" : "#e2e8f0", color: iconMode ? "white" : "#374151", border: "none", borderRadius: 20, cursor: "pointer", fontWeight: 700, flexShrink: 0 }}
+              >
+                {iconMode ? "📝 Text Mode" : "🖼 Icon Mode"}
+              </button>
             </div>
+
+            {iconMode && (
+              <div style={{ marginBottom: 12, padding: "8px 10px", background: "#f0f9ff", borderRadius: 8, fontSize: 12, color: "#0369a1" }}>
+                Icon mode: tap icons for non-verbal / non-literate intake. No reading required.
+              </div>
+            )}
 
             {/* Photo upload */}
             <div style={fieldStyle}>
               <label style={labelStyle}>Photo (optional — AI will auto-fill description)</label>
               <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    style={{ display: "none" }}
-                    onChange={handlePhotoUpload}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      padding: "8px 14px",
-                      background: "#f3f4f6",
-                      border: "1.5px dashed #9ca3af",
-                      borderRadius: 6,
-                      cursor: "pointer",
-                      fontSize: 13,
-                      color: "#374151",
-                    }}
-                  >
+                  <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoUpload} />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: "8px 14px", background: "#f3f4f6", border: "1.5px dashed #9ca3af", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#374151" }}>
                     📷 Upload Photo
                   </button>
                   {photoAnalyzing && (
                     <div style={{ marginTop: 6, fontSize: 12, color: "#7c3aed", display: "flex", alignItems: "center", gap: 6 }}>
-                      <span className="spinner" style={{ width: 14, height: 14 }} />
-                      Analyzing with AI…
+                      <span className="spinner" style={{ width: 14, height: 14 }} /> Analyzing with AI…
                     </div>
                   )}
                 </div>
-                {photoPreview && (
-                  <img
-                    src={photoPreview}
-                    alt="Preview"
-                    style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb" }}
-                  />
-                )}
+                {photoPreview && <img src={photoPreview} alt="Preview" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb" }} />}
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Age Range</label>
-                <select style={inputStyle} value={ageRange} onChange={e => setAgeRange(e.target.value as AgeRange)}>
-                  {AGE_RANGES.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-              </div>
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Gender</label>
-                <select style={inputStyle} value={gender} onChange={e => setGender(e.target.value as Gender)}>
-                  {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </div>
+            {/* Age Range */}
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Age Range</label>
+              {iconMode
+                ? <IconGrid options={AGE_ICONS} value={ageRange} onChange={v => setAgeRange(v as AgeRange)} />
+                : <select style={inputStyle} value={ageRange} onChange={e => setAgeRange(e.target.value as AgeRange)}>
+                    {AGE_RANGES.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+              }
             </div>
+
+            {/* Gender */}
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Gender</label>
+              {iconMode
+                ? <IconGrid options={GENDER_ICONS} value={gender} onChange={v => setGender(v as Gender)} />
+                : <select style={inputStyle} value={gender} onChange={e => setGender(e.target.value as Gender)}>
+                    {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+              }
+            </div>
+
+            {/* Condition */}
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Condition</label>
+              {iconMode
+                ? <IconGrid options={CONDITION_ICONS} value={condition} onChange={v => setCondition(v as Condition)} />
+                : <select style={inputStyle} value={condition} onChange={e => setCondition(e.target.value as Condition)}>
+                    {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+              }
+            </div>
+
+            {/* Child-specific fields */}
+            {isChild && (
+              <div style={{ background: "#fef9c3", border: "1px solid #fde047", borderRadius: 8, padding: "12px 14px", marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#854d0e", marginBottom: 8 }}>⚠️ Unaccompanied Minor — Extra Details</div>
+                <div style={fieldStyle}>
+                  <label style={labelStyle}>Does the child know their name?</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {[{ v: true, l: "✅ Yes" }, { v: false, l: "❌ No" }].map(({ v, l }) => (
+                      <button key={String(v)} type="button" onClick={() => setChildKnowsName(v)}
+                        style={{ flex: 1, padding: "6px 10px", background: childKnowsName === v ? "#fde047" : "#f3f4f6", border: `2px solid ${childKnowsName === v ? "#ca8a04" : "#e5e7eb"}`, borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: childKnowsName === v ? 700 : 400 }}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={fieldStyle}>
+                  <label style={labelStyle}>School / city / hometown mentioned?</label>
+                  <input style={inputStyle} value={childHometown} onChange={e => setChildHometown(e.target.value)} placeholder="e.g. St Mary's School, Pune" />
+                </div>
+              </div>
+            )}
 
             <div style={fieldStyle}>
               <label style={labelStyle}>Clothing Description <span style={{ color: "#dc2626" }}>*</span></label>
@@ -586,37 +695,9 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
                   {errors.clothing && <div style={errStyle}>{errors.clothing}</div>}
                 </div>
                 <div style={{ position: "relative" }}>
-                  <button
-                    type="button"
-                    onClick={handleVoiceInput}
-                    title="Voice input"
-                    style={{
-                      padding: "8px 10px",
-                      background: "#f3f4f6",
-                      border: "1px solid #d1d5db",
-                      borderRadius: 6,
-                      cursor: "pointer",
-                      fontSize: 18,
-                      lineHeight: 1,
-                    }}
-                  >
-                    🎤
-                  </button>
+                  <button type="button" onClick={handleVoiceInput} title="Voice input" style={{ padding: "8px 10px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>🎤</button>
                   {voiceTooltip && (
-                    <div style={{
-                      position: "absolute",
-                      right: 0,
-                      top: "110%",
-                      background: "#1c1917",
-                      color: "white",
-                      fontSize: 11,
-                      padding: "5px 8px",
-                      borderRadius: 5,
-                      whiteSpace: "nowrap",
-                      zIndex: 10,
-                    }}>
-                      {voiceTooltip}
-                    </div>
+                    <div style={{ position: "absolute", right: 0, top: "110%", background: "#1c1917", color: "white", fontSize: 11, padding: "5px 8px", borderRadius: 5, whiteSpace: "nowrap", zIndex: 10 }}>{voiceTooltip}</div>
                   )}
                 </div>
               </div>
@@ -630,35 +711,56 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
                 </select>
               </div>
               <div style={fieldStyle}>
-                <label style={labelStyle}>Condition</label>
-                <select style={inputStyle} value={condition} onChange={e => setCondition(e.target.value as Condition)}>
-                  {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <label style={labelStyle}>Where Found</label>
+                <input style={inputStyle} value={whereFound} onChange={e => setWhereFound(e.target.value)} placeholder="Zone or location" />
               </div>
-            </div>
-
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Where Found</label>
-              <input
-                style={inputStyle}
-                value={whereFound}
-                onChange={e => setWhereFound(e.target.value)}
-                placeholder="Zone or location description"
-              />
             </div>
 
             <div style={fieldStyle}>
               <label style={labelStyle}>Contact Number (optional)</label>
               <input
                 style={{ ...inputStyle, borderColor: errors.contactNumber ? "#dc2626" : "#d1d5db" }}
-                type="tel"
-                maxLength={10}
+                type="tel" maxLength={10}
                 value={contactNumber}
                 onChange={e => setContactNumber(e.target.value.replace(/\D/g, ""))}
                 placeholder="Their mobile if they have one"
               />
               {errors.contactNumber && <div style={errStyle}>{errors.contactNumber}</div>}
             </div>
+
+            {/* Abandoned elderly — care disposition */}
+            {mode === "help-person" && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "12px 14px", marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#14532d", marginBottom: 8 }}>♿ Family & Care Status</div>
+                <div style={fieldStyle}>
+                  <label style={labelStyle}>Is family expected to claim this person?</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {[{ v: true, l: "👨‍👩‍👧 Yes — searching" }, { v: false, l: "🏥 No — needs care" }].map(({ v, l }) => (
+                      <button key={String(v)} type="button" onClick={() => setFamilyExpected(v)}
+                        style={{ flex: 1, padding: "7px 6px", background: familyExpected === v ? "#dcfce7" : "#f3f4f6", border: `2px solid ${familyExpected === v ? "#16a34a" : "#e5e7eb"}`, borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: familyExpected === v ? 700 : 400 }}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {!familyExpected && (
+                  <>
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Care Disposition</label>
+                      <select style={inputStyle} value={disposition} onChange={e => setDisposition(e.target.value as typeof disposition)}>
+                        <option value="care-arranged">🏠 Care arranged — shelter</option>
+                        <option value="medical-referral">🏥 Medical referral</option>
+                        <option value="transferred-shelter">🚌 Transferred to welfare shelter</option>
+                      </select>
+                    </div>
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Notes (facility name, contact, etc.)</label>
+                      <textarea style={{ ...inputStyle, minHeight: 54, resize: "vertical" }} value={dispositionNotes} onChange={e => setDispositionNotes(e.target.value)} placeholder="e.g. Transferred to Nashik Civil Hospital, ward 4" />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </>
         )}
 

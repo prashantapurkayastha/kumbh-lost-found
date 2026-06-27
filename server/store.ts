@@ -274,6 +274,16 @@ export const store = {
     return state.missingReports.find((r) => r.id === id);
   },
 
+  flagSuspicion(reportId: string, notes: string): boolean {
+    const report = state.missingReports.find((r) => r.id === reportId);
+    if (!report) return false;
+    report.suspicionFlag = true;
+    report.suspicionNotes = notes;
+    report.held = true;
+    persist(state);
+    return true;
+  },
+
   // ── Mutations ─────────────────────────────────────────────────────────────
   addFoundPerson(input: RegisterFoundPersonInput): FoundPerson {
     const id = `FP-${String(state.fpCounter++).padStart(3, "0")}`;
@@ -295,9 +305,18 @@ export const store = {
       condition: input.condition ?? "calm",
       physicalDescription: "",
       photoMatchConfidence: input.photoProvided ? 0.65 : 0,
+      photoBase64: input.photoBase64,
       status: "waiting",
       is_potential_duplicate: false,
       expiresAt: makeExpiresAt(),
+      // Care disposition
+      disposition: input.disposition ?? "active",
+      dispositionNotes: input.dispositionNotes,
+      familyExpected: input.familyExpected ?? true,
+      // Minor flags
+      isMinorUnaccompanied: input.isMinorUnaccompanied ?? false,
+      childKnowsName: input.childKnowsName,
+      childHometown: input.childHometown,
     };
 
     state.foundPersons.push(fp);

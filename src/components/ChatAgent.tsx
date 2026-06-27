@@ -19,6 +19,25 @@ interface DisplayMessage {
   text: string;
 }
 
+// Simple markdown renderer: **bold**, numbered lists, newlines
+function renderMarkdown(text: string): React.ReactNode[] {
+  return text.split("\n").map((line, i, arr) => {
+    // Split on **bold** markers
+    const parts = line.split(/(\*\*[^*]+\*\*)/g).map((part, j) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={j}>{part.slice(2, -2)}</strong>;
+      }
+      return <span key={j}>{part}</span>;
+    });
+    return (
+      <span key={i}>
+        {parts}
+        {i < arr.length - 1 && <br />}
+      </span>
+    );
+  });
+}
+
 export default function ChatAgent({
   langCode,
   initialPrompt,
@@ -88,7 +107,12 @@ export default function ChatAgent({
         { role: "assistant", content: result.finalText },
       ]);
       setActiveTools([]);
-      onResult?.(result);
+
+      // Only fire onResult when Claude has taken a completing action (not just asked a question)
+      const completingTools = ["register_missing_person", "register_found_person", "get_reunion_point"];
+      if (result.toolCallsMade.some((tc) => completingTools.includes(tc.name))) {
+        onResult?.(result);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setError(msg);
@@ -132,14 +156,7 @@ export default function ChatAgent({
 
         {displayMsgs.map((msg, i) => (
           <div key={i} className={`chat-msg ${msg.role}`}>
-            {msg.role === "assistant"
-              ? msg.text.split("\n").map((line, j) => (
-                  <span key={j}>
-                    {line}
-                    {j < msg.text.split("\n").length - 1 && <br />}
-                  </span>
-                ))
-              : msg.text}
+            {msg.role === "assistant" ? renderMarkdown(msg.text) : msg.text}
           </div>
         ))}
 

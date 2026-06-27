@@ -231,36 +231,68 @@ export default function HelpDeskPanel() {
               )}
 
               <div className="card-title">⏳ Found Persons Waiting</div>
-              {allFound.slice(0, 6).map((fp) => (
-                <div key={fp.id} className="notif-item">
-                  <div className="notif-dot" style={{ background: fp.condition === "distressed" ? "#dc2626" : "#16a34a" }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ fontWeight: 700, fontSize: 13 }}>{fp.id}</span>
-                      <span className={`badge ${fp.condition === "distressed" ? "badge-red" : "badge-green"}`}>{fp.condition}</span>
+              {allFound.slice(0, 8).map((fp) => {
+                const matches = registry.searchMissingReports(fp);
+                const hasMatch = matches.length > 0;
+                return (
+                  <div key={fp.id} className="notif-item" style={{ borderLeft: hasMatch ? "3px solid #f97316" : undefined, background: hasMatch ? "#fff8f4" : undefined, borderRadius: hasMatch ? 6 : undefined }}>
+                    <div className="notif-dot" style={{ background: fp.condition === "distressed" ? "#dc2626" : "#16a34a" }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontWeight: 700, fontSize: 13 }}>{fp.id}</span>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          {hasMatch && <span style={{ fontSize: 10, background: "#f97316", color: "white", borderRadius: 10, padding: "1px 6px" }}>⚡ MATCH</span>}
+                          <span className={`badge ${fp.condition === "distressed" ? "badge-red" : "badge-green"}`}>{fp.condition}</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#57534e" }}>{fp.ageRange} {fp.gender} · {fp.clothing.slice(0, 40)}</div>
+                      <div style={{ fontSize: 11, color: "#a8a29e" }}>{fp.centerName} · {fp.languageSpoken}</div>
+                      {hasMatch && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: "#c2410c", background: "#fff7ed", padding: "3px 6px", borderRadius: 4 }}>
+                          ⚠️ Missing report {matches[0].missingReportId} ({Math.round(matches[0].confidence * 100)}% match)
+                          {matches[0].contactNumber && <> · 📞 <a href={`tel:${matches[0].contactNumber}`} style={{ color: "#1d4ed8" }}>{matches[0].contactNumber}</a></>}
+                          <span style={{ color: "#a8a29e", marginLeft: 4 }}>{matches[0].matchReason}</span>
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: 12, color: "#57534e" }}>{fp.ageRange} {fp.gender} · {fp.clothing.slice(0, 40)}</div>
-                    <div style={{ fontSize: 11, color: "#a8a29e" }}>{fp.centerName} · {fp.languageSpoken}</div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               <div className="card-title" style={{ marginTop: 16 }}>🔍 Active Missing Reports</div>
-              {allMissing.filter((r) => !r.is_duplicate_report).slice(0, 5).map((mr) => (
-                <div key={mr.id} className="notif-item">
-                  <div className="notif-dot" style={{ background: "#d97706" }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ fontWeight: 700, fontSize: 13 }}>{mr.id}</span>
-                      {mr.is_duplicate_report && <span className="badge badge-amber">Duplicate</span>}
+              {allMissing.filter((r) => !r.is_duplicate_report).slice(0, 6).map((mr) => {
+                const matches = registry.searchFound({
+                  description: mr.missingPerson.clothing,
+                  ageRange: mr.missingPerson.ageRange,
+                  gender: mr.missingPerson.gender,
+                  clothingDescription: mr.missingPerson.clothing,
+                  lastSeenZone: mr.missingPerson.lastSeenLocation,
+                });
+                const hasMatch = matches.length > 0;
+                return (
+                  <div key={mr.id} className="notif-item" style={{ borderLeft: hasMatch ? "3px solid #16a34a" : undefined, background: hasMatch ? "#f0fdf4" : undefined, borderRadius: hasMatch ? 6 : undefined }}>
+                    <div className="notif-dot" style={{ background: "#d97706" }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontWeight: 700, fontSize: 13 }}>{mr.id}</span>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          {hasMatch && <span style={{ fontSize: 10, background: "#16a34a", color: "white", borderRadius: 10, padding: "1px 6px" }}>✅ FOUND</span>}
+                          {mr.is_duplicate_report && <span className="badge badge-amber">Linked</span>}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#57534e" }}>
+                        {mr.missingPerson.name ?? "Unknown"} · {mr.missingPerson.ageRange} · {mr.missingPerson.clothing.slice(0, 35)}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#a8a29e" }}>{mr.reportingCenter}</div>
+                      {hasMatch && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: "#15803d", background: "#f0fdf4", padding: "3px 6px", borderRadius: 4 }}>
+                          ✅ Possible match: {matches[0].id} at {matches[0].centerName} ({Math.round(matches[0].confidence * 100)}%)
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: 12, color: "#57534e" }}>
-                      {mr.missingPerson.name ?? "Unknown"} · {mr.missingPerson.ageRange} · {mr.missingPerson.clothing.slice(0, 35)}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#a8a29e" }}>{mr.reportingCenter}</div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="two-panel__right">
               <MapView userLocation={userLocation} markers={markers} height="100%" zoom={13} />

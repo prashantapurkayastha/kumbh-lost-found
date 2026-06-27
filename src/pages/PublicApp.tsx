@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView, { type MapMarker, type RouteTarget, type CctvPoint, type ChokepointData } from "../components/MapView";
 import cctvData from "../data/cctv.json";
@@ -38,6 +38,10 @@ export default function PublicApp() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [contactNumber, setContactNumber] = useState("");
   const [missingDescription, setMissingDescription] = useState("");
+  // i-am-lost form fields (collected before chat)
+  const [lostName, setLostName] = useState("");
+  const [lostAge, setLostAge] = useState("");
+  const [lostDescription, setLostDescription] = useState("");
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
   const [registerOutput, setRegisterOutput] = useState<Record<string, unknown> | null>(null);
   const [reunionPoint, setReunionPoint] = useState<ReunionPoint | null>(null);
@@ -144,12 +148,6 @@ export default function PublicApp() {
     setSosLoading(false);
     setSosSent(true);
     setRefNumber(refId);
-
-    // Show brief confirmation then go to chat
-    setTimeout(() => {
-      setFlowType("i-am-lost");
-      setScreen("chat");
-    }, 2500);
   }
 
   // ── Agent result handler ───────────────────────────────────────────────────
@@ -196,9 +194,13 @@ export default function PublicApp() {
   function buildInitialPrompt(): string {
     if (flowType === "i-am-lost") {
       const locStr = userLocation
-        ? `My current GPS location is ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}.`
+        ? ` My GPS: ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}.`
         : "";
-      return `I am lost and need help. ${locStr} Please help me get back to my family. I speak ${getLangName(lang)}.`;
+      const nameStr = lostName ? ` My name is ${lostName}.` : "";
+      const ageStr = lostAge ? ` I am ${lostAge} years old.` : "";
+      const descStr = lostDescription ? ` I am wearing: ${lostDescription}.` : "";
+      const phoneStr = contactNumber ? ` My phone: +91${contactNumber}.` : "";
+      return `I am lost and need help finding my family.${locStr}${nameStr}${ageStr}${descStr}${phoneStr} I speak ${getLangName(lang)}. Please register me as a found person and search for any missing reports my family may have filed.`;
     }
     if (flowType === "report-missing" && missingDescription.trim()) {
       const photoNote = photoBase64 ? " I have also attached a photo." : "";
@@ -239,6 +241,12 @@ export default function PublicApp() {
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <LanguageSelector value={lang} onChange={setLang} compact />
+            <button
+              onClick={() => navigate("/registry")}
+              style={{ fontSize: 11, color: "#15803d", padding: "4px 8px", border: "1px solid #86efac", borderRadius: 6, background: "#f0fdf4", whiteSpace: "nowrap" }}
+            >
+              📋 Registry
+            </button>
             <button
               onClick={() => navigate("/volunteer")}
               style={{ fontSize: 11, color: "#78716c", padding: "4px 8px", border: "1px solid #e7e5e4", borderRadius: 6, whiteSpace: "nowrap" }}
@@ -335,12 +343,37 @@ export default function PublicApp() {
             }}
           >
             {sosSent ? (
-              <div className="result-box" style={{ textAlign: "center", padding: "16px 24px" }}>
-                <div style={{ fontSize: 28 }}>✅</div>
-                <div style={{ fontWeight: 700, color: "#16a34a", marginTop: 8 }}>SOS Sent!</div>
-                <div style={{ fontSize: 13, color: "#57534e", marginTop: 4 }}>
-                  Nearest center alerted · Ref: <strong>{refNumber}</strong>
+              <div className="result-box" style={{ width: "100%", padding: "20px 24px" }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 32 }}>✅</div>
+                  <div style={{ fontWeight: 700, color: "#16a34a", fontSize: 18, marginTop: 6 }}>Help is on the way!</div>
+                  <div style={{ display: "inline-block", fontFamily: "monospace", fontSize: 14, background: "#f0fdf4", color: "#15803d", padding: "4px 14px", borderRadius: 8, marginTop: 6, fontWeight: 700 }}>
+                    Ref: {refNumber}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, color: "#78716c", fontSize: 12 }}>
+                    <span className="spinner" style={{ width: 12, height: 12 }} />
+                    Nearest center alerted · coordinator notified
+                  </div>
                 </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  <button
+                    onClick={() => { setFlowType("i-am-lost"); setScreen("i-am-lost"); }}
+                    className="btn btn-primary flex-1"
+                    style={{ fontSize: 13 }}
+                  >
+                    💬 Chat with agent
+                  </button>
+                  <button
+                    onClick={() => navigate("/registry")}
+                    className="btn btn-ghost flex-1"
+                    style={{ fontSize: 13 }}
+                  >
+                    📋 View registry
+                  </button>
+                </div>
+                <p style={{ fontSize: 11, color: "#a8a29e", textAlign: "center", marginTop: 8 }}>
+                  Keep this screen open — your family can search for Ref {refNumber}
+                </p>
               </div>
             ) : (
               <button
@@ -353,9 +386,9 @@ export default function PublicApp() {
                 {sosLoading ? <span className="spinner" /> : t("sosBtn", lang)}
               </button>
             )}
-            <p style={{ fontSize: 12, color: "#78716c", textAlign: "center" }}>
-              {sosSent ? t("sosChatMsg", lang) : t("sosHint", lang)}
-            </p>
+            {!sosSent && (
+              <p style={{ fontSize: 12, color: "#78716c", textAlign: "center" }}>{t("sosHint", lang)}</p>
+            )}
           </div>
 
           <div className="divider" />
@@ -492,6 +525,45 @@ export default function PublicApp() {
 
         <div className="page-body">
           <div className="card">
+            <div style={{ fontSize: 12, color: "#78716c", marginBottom: 12, background: "#fff8f4", padding: "8px 10px", borderRadius: 8, borderLeft: "3px solid #f97316" }}>
+              ℹ️ Fill in as much as you can — this registers you in the live missing registry so your family can find you.
+            </div>
+
+            <div className="form-row">
+              <label className="input-label">👤 Your name (optional)</label>
+              <input
+                value={lostName}
+                onChange={e => setLostName(e.target.value)}
+                placeholder="e.g. Ramesh Sharma"
+                className="input"
+              />
+            </div>
+
+            <div className="form-row">
+              <label className="input-label">🎂 Your age (optional)</label>
+              <input
+                value={lostAge}
+                onChange={e => setLostAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                placeholder="e.g. 45"
+                className="input"
+                type="number"
+                min={1}
+                max={110}
+              />
+            </div>
+
+            <div className="form-row">
+              <label className="input-label">👗 What are you wearing?</label>
+              <textarea
+                value={lostDescription}
+                onChange={e => setLostDescription(e.target.value)}
+                placeholder="e.g. White kurta and blue dhoti, yellow shawl, glasses"
+                className="input"
+                rows={2}
+                style={{ resize: "none" }}
+              />
+            </div>
+
             <div className="form-row">
               <label className="input-label">{t("phoneOptional", lang)}</label>
               <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
@@ -739,9 +811,18 @@ export default function PublicApp() {
           {agentResult?.finalText && (
             <div className="card" style={{ marginTop: 12 }}>
               <div className="card-title">{t("instructions", lang)}</div>
-              <p style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
-                {agentResult.finalText}
-              </p>
+              <div style={{ fontSize: 14, lineHeight: 1.7 }}>
+                {agentResult.finalText.split("\n").map((line, i, arr) => (
+                  <span key={i}>
+                    {line.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
+                      part.startsWith("**") && part.endsWith("**")
+                        ? <strong key={j}>{part.slice(2, -2)}</strong>
+                        : <span key={j}>{part}</span>
+                    )}
+                    {i < arr.length - 1 && <br />}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 

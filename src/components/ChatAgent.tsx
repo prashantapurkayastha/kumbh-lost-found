@@ -19,23 +19,69 @@ interface DisplayMessage {
   text: string;
 }
 
-// Simple markdown renderer: **bold**, numbered lists, newlines
-function renderMarkdown(text: string): React.ReactNode[] {
-  return text.split("\n").map((line, i, arr) => {
-    // Split on **bold** markers
-    const parts = line.split(/(\*\*[^*]+\*\*)/g).map((part, j) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={j}>{part.slice(2, -2)}</strong>;
-      }
-      return <span key={j}>{part}</span>;
-    });
-    return (
-      <span key={i}>
-        {parts}
-        {i < arr.length - 1 && <br />}
-      </span>
-    );
+// Inline: **bold**, `code`
+function renderInline(text: string): React.ReactNode {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**"))
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith("`") && part.endsWith("`"))
+      return <code key={i} style={{ background: "#f1f0ef", padding: "1px 4px", borderRadius: 3, fontFamily: "monospace", fontSize: "0.88em" }}>{part.slice(1, -1)}</code>;
+    return <span key={i}>{part}</span>;
   });
+}
+
+// Full markdown renderer: ##, ---, |tables|, - lists, 1. lists, **bold**, `code`
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split("\n");
+  const nodes: React.ReactNode[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    // Headings
+    if (trimmed.startsWith("## ")) {
+      nodes.push(<div key={i} style={{ fontWeight: 700, fontSize: 15, color: "#1e293b", marginTop: 10, marginBottom: 2 }}>{renderInline(trimmed.slice(3))}</div>);
+    } else if (trimmed.startsWith("### ")) {
+      nodes.push(<div key={i} style={{ fontWeight: 700, fontSize: 13, color: "#374151", marginTop: 6, marginBottom: 2 }}>{renderInline(trimmed.slice(4))}</div>);
+    // Horizontal rule
+    } else if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
+      nodes.push(<hr key={i} style={{ border: "none", borderTop: "1px solid #e7e5e4", margin: "6px 0" }} />);
+    // Table separator row — skip
+    } else if (/^\|[-:\s|]+\|$/.test(trimmed)) {
+      // skip
+    // Table data row
+    } else if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      const cells = trimmed.split("|").slice(1, -1);
+      nodes.push(
+        <div key={i} style={{ display: "flex", gap: 8, fontSize: 13, padding: "3px 0", borderBottom: "1px solid #f1f0ef" }}>
+          {cells.map((cell, j) => <div key={j} style={{ flex: 1 }}>{renderInline(cell.trim())}</div>)}
+        </div>
+      );
+    // Bullet list
+    } else if (/^[-*•]\s+/.test(trimmed)) {
+      nodes.push(
+        <div key={i} style={{ display: "flex", gap: 6, fontSize: 14, lineHeight: 1.55, marginTop: 1 }}>
+          <span style={{ color: "#f97316", flexShrink: 0, marginTop: 1 }}>•</span>
+          <span>{renderInline(trimmed.replace(/^[-*•]\s+/, ""))}</span>
+        </div>
+      );
+    // Numbered list
+    } else if (/^\d+\.\s+/.test(trimmed)) {
+      const m = trimmed.match(/^(\d+)\.\s+(.*)/);
+      if (m) nodes.push(
+        <div key={i} style={{ display: "flex", gap: 6, fontSize: 14, lineHeight: 1.55, marginTop: 1 }}>
+          <span style={{ color: "#f97316", flexShrink: 0, fontWeight: 700, minWidth: 16 }}>{m[1]}.</span>
+          <span>{renderInline(m[2])}</span>
+        </div>
+      );
+    // Empty line
+    } else if (trimmed === "") {
+      nodes.push(<div key={i} style={{ height: 4 }} />);
+    // Normal paragraph
+    } else {
+      nodes.push(<div key={i} style={{ fontSize: 14, lineHeight: 1.6 }}>{renderInline(line)}</div>);
+    }
+  }
+  return <>{nodes}</>;
 }
 
 export default function ChatAgent({

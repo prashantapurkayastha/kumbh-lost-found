@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { registry } from "../core/backends/registry";
 import MapView, { type RouteTarget } from "../components/MapView";
+import { RAMKUND_DEFAULT, type UserLocation } from "../services/location";
 import type { FoundPerson, MissingReport, HelpCenter } from "../types";
+
+const NASHIK_LOC: UserLocation = { ...RAMKUND_DEFAULT, accuracy: 0, source: "default" };
 
 type Tab = "missing" | "found";
 
@@ -217,6 +220,7 @@ function FoundCard({
 // ── Main Registry Page ────────────────────────────────────────────────────────
 export default function MissingRegistry() {
   const navigate = useNavigate();
+  const topRef = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<Tab>("missing");
   const [search, setSearch] = useState("");
   const [foundPersons, setFoundPersons] = useState<FoundPerson[]>([]);
@@ -258,8 +262,14 @@ export default function MissingRegistry() {
     markers.push({ type: "center" as const, lat: routeTo.lat, lng: routeTo.lng, label: `📍 ${routeTo.name}` });
   }
 
+  function handleGetDirections(target: RouteTarget & { center: HelpCenter }) {
+    setRouteTo(target);
+    topRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
+
   return (
     <div className="page" style={{ background: "#fafaf9" }}>
+      <div ref={topRef} />
       {/* Header */}
       <div className="page-header" style={{ justifyContent: "space-between", background: "#1e293b" }}>
         <div>
@@ -277,16 +287,16 @@ export default function MissingRegistry() {
         </button>
       </div>
 
-      {/* Map — shows route when center selected */}
-      {routeTo && (
-        <div style={{ position: "relative" }}>
-          <MapView userLocation={null} markers={markers} routeTo={routeTo} height={200} zoom={13} />
-          <div style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", background: "white", borderRadius: 20, padding: "4px 12px", fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,.2)" }}>
+      {/* Map — always visible, shows route when "Go there" is tapped */}
+      <div style={{ position: "relative" }}>
+        <MapView userLocation={NASHIK_LOC} markers={markers} routeTo={routeTo ?? undefined} height={220} zoom={13} />
+        {routeTo && (
+          <div style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", background: "white", borderRadius: 20, padding: "4px 12px", fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,.2)", zIndex: 999, whiteSpace: "nowrap" }}>
             🗺 Route to {routeTo.name}
             <button onClick={() => setRouteTo(null)} style={{ marginLeft: 8, fontSize: 11, color: "#dc2626", background: "none", border: "none", cursor: "pointer" }}>✕</button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Search */}
       <div style={{ padding: "10px 16px", background: "white", borderBottom: "1px solid #e7e5e4" }}>
@@ -331,7 +341,7 @@ export default function MissingRegistry() {
                   mr={mr}
                   found={foundPersons}
                   centers={centers}
-                  onGetDirections={setRouteTo}
+                  onGetDirections={handleGetDirections}
                 />
               ))
             )}
@@ -351,7 +361,7 @@ export default function MissingRegistry() {
                   key={fp.id}
                   fp={fp}
                   centers={centers}
-                  onGetDirections={setRouteTo}
+                  onGetDirections={handleGetDirections}
                 />
               ))
             )}

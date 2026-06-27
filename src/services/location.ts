@@ -36,6 +36,15 @@ export async function getUserLocation(): Promise<UserLocation> {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         clearTimeout(timeout);
+        // Demo mode: if GPS puts us >80km from Nashik event area, snap to Nashik default
+        // (handles testing from outside the venue; real deployment at Kumbh would be fine)
+        const dLat = pos.coords.latitude - RAMKUND_DEFAULT.lat;
+        const dLng = pos.coords.longitude - RAMKUND_DEFAULT.lng;
+        const approxKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111;
+        if (approxKm > 80) {
+          resolve({ ...RAMKUND_DEFAULT, accuracy: 0, source: "default" });
+          return;
+        }
         const loc: UserLocation = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
@@ -66,6 +75,10 @@ function getCachedLocation(): UserLocation | null {
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (Date.now() - data.cachedAt > CACHE_TTL) return null;
+    // Discard cached locations outside the Nashik event area
+    const dLat = data.lat - RAMKUND_DEFAULT.lat;
+    const dLng = data.lng - RAMKUND_DEFAULT.lng;
+    if (Math.sqrt(dLat * dLat + dLng * dLng) * 111 > 80) return null;
     return { lat: data.lat, lng: data.lng, accuracy: data.accuracy, source: "cached" };
   } catch {
     return null;

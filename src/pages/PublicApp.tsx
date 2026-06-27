@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView, { type MapMarker, type RouteTarget, type CctvPoint, type ChokepointData } from "../components/MapView";
 import cctvData from "../data/cctv.json";
@@ -15,12 +15,68 @@ import { getActiveVolunteers, type VolunteerRecord } from "../services/volunteer
 import { registry as regBackend } from "../core/backends/registry";
 import { haversineKm, walkingMinutes } from "../core/backends/geo";
 import type { AgentResult } from "../core/agent";
-import type { ReunionPoint } from "../types";
+import type { ReunionPoint, FoundPerson } from "../types";
+import { RAMKUND_DEFAULT } from "../services/location";
+
+// ── Shared markdown renderer (same logic as ChatAgent) ─────────────────────
+function renderInline(text: string): React.ReactNode {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith("`") && part.endsWith("`")) return <code key={i} style={{ background: "#f1f0ef", padding: "1px 4px", borderRadius: 3, fontFamily: "monospace", fontSize: "0.88em" }}>{part.slice(1, -1)}</code>;
+    return <span key={i}>{part}</span>;
+  });
+}
+function MarkdownView({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const nodes: React.ReactNode[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]; const trimmed = line.trim();
+    if (trimmed.startsWith("## ")) nodes.push(<div key={i} style={{ fontWeight: 700, fontSize: 15, color: "#1e293b", marginTop: 10, marginBottom: 2 }}>{renderInline(trimmed.slice(3))}</div>);
+    else if (trimmed.startsWith("### ")) nodes.push(<div key={i} style={{ fontWeight: 700, fontSize: 13, color: "#374151", marginTop: 6 }}>{renderInline(trimmed.slice(4))}</div>);
+    else if (trimmed === "---" || trimmed === "***") nodes.push(<hr key={i} style={{ border: "none", borderTop: "1px solid #e7e5e4", margin: "6px 0" }} />);
+    else if (/^\|[-:\s|]+\|$/.test(trimmed)) { /* skip table sep */ }
+    else if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      const cells = trimmed.split("|").slice(1, -1);
+      nodes.push(<div key={i} style={{ display: "flex", gap: 8, fontSize: 13, padding: "3px 0", borderBottom: "1px solid #f1f0ef" }}>{cells.map((c, j) => <div key={j} style={{ flex: 1 }}>{renderInline(c.trim())}</div>)}</div>);
+    } else if (/^[-*•]\s+/.test(trimmed)) {
+      nodes.push(<div key={i} style={{ display: "flex", gap: 6, fontSize: 14, lineHeight: 1.55, marginTop: 1 }}><span style={{ color: "#f97316", flexShrink: 0 }}>•</span><span>{renderInline(trimmed.replace(/^[-*•]\s+/, ""))}</span></div>);
+    } else if (/^\d+\.\s+/.test(trimmed)) {
+      const m = trimmed.match(/^(\d+)\.\s+(.*)/);
+      if (m) nodes.push(<div key={i} style={{ display: "flex", gap: 6, fontSize: 14, lineHeight: 1.55, marginTop: 1 }}><span style={{ color: "#f97316", flexShrink: 0, fontWeight: 700, minWidth: 16 }}>{m[1]}.</span><span>{renderInline(m[2])}</span></div>);
+    } else if (trimmed === "") nodes.push(<div key={i} style={{ height: 4 }} />);
+    else nodes.push(<div key={i} style={{ fontSize: 14, lineHeight: 1.6 }}>{renderInline(line)}</div>);
+  }
+  return <>{nodes}</>;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screens
-type Screen = "landing" | "language" | "i-am-lost" | "report-missing" | "chat" | "result";
+type Screen = "landing" | "language" | "i-am-lost" | "report-missing" | "match-check" | "chat" | "result";
 type FlowType = "i-am-lost" | "report-missing";
+
+// Auto-proceeds after showing "no match found" message
+function MatchCheckEmpty({ onProceed }: { onProceed: () => void }) {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const t1 = setTimeout(() => setStep(1), 1000);
+    const t2 = setTimeout(() => setStep(2), 2200);
+    const t3 = setTimeout(() => onProceed(), 3000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [onProceed]);
+  return (
+    <div style={{ textAlign: "center", padding: "40px 20px" }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
+      <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b", marginBottom: 8 }}>Scanning all 10 help centers…</div>
+      <div style={{ fontSize: 13, color: step >= 1 ? "#16a34a" : "#a8a29e", marginBottom: 4, transition: "color .4s" }}>
+        {step >= 1 ? "✅ Centers scanned" : "⏳ Scanning…"}
+      </div>
+      <div style={{ fontSize: 13, color: step >= 2 ? "#f97316" : "#a8a29e", marginBottom: 20, transition: "color .4s" }}>
+        {step >= 2 ? "⚠️ No match found yet — opening chat to file a report" : "⏳ Cross-referencing descriptions…"}
+      </div>
+      <div className="spinner" style={{ margin: "0 auto", width: 24, height: 24 }} />
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function PublicApp() {
@@ -38,6 +94,7 @@ export default function PublicApp() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [contactNumber, setContactNumber] = useState("");
   const [missingDescription, setMissingDescription] = useState("");
+  const [preCheckMatches, setPreCheckMatches] = useState<FoundPerson[]>([]);
   // i-am-lost form fields (collected before chat)
   const [lostName, setLostName] = useState("");
   const [lostAge, setLostAge] = useState("");
@@ -464,15 +521,33 @@ export default function PublicApp() {
               <div className="card-title">🙋 Nearest Volunteers ({nearbyVolunteers.length} active)</div>
               {nearbyVolunteers.slice(0, 3).map((v) => {
                 const dist = userLocation ? haversineKm(userLocation, { lat: v.lat, lng: v.lng }) : 0;
+                const isRouted = routeTo?.lat === v.lat && routeTo?.lng === v.lng;
                 return (
                   <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f1f0ef" }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{v.name}</div>
                       <div style={{ fontSize: 11, color: "#78716c" }}>{v.centerName}</div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>🟢 Active</div>
-                      <div style={{ fontSize: 11, color: "#78716c" }}>🚶 {walkingMinutes(dist)} min</div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 12, color: "#16a34a", fontWeight: 700 }}>🟢 Active</div>
+                        <div style={{ fontSize: 11, color: "#78716c" }}>🚶 {walkingMinutes(dist)} min</div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setRouteTo({ lat: v.lat, lng: v.lng, name: `${v.name} (Volunteer)` });
+                          setSelectedDeskId(v.id);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        style={{
+                          fontSize: 11, padding: "4px 8px", borderRadius: 6,
+                          background: isRouted ? "#7c3aed" : "white",
+                          color: isRouted ? "white" : "#7c3aed",
+                          border: "1px solid #7c3aed", cursor: "pointer",
+                        }}
+                      >
+                        {isRouted ? "📍" : "🗺"}
+                      </button>
                     </div>
                   </div>
                 );
@@ -697,7 +772,12 @@ export default function PublicApp() {
             </div>
 
             <button
-              onClick={() => setScreen("chat")}
+              onClick={() => {
+                // First do a quick client-side registry check before opening chat
+                const results = registry.searchFound({ description: missingDescription });
+                setPreCheckMatches(results.map(r => r as unknown as FoundPerson));
+                setScreen("match-check");
+              }}
               disabled={!missingDescription.trim()}
               className="btn btn-primary btn-full mt-16"
               style={{ opacity: missingDescription.trim() ? 1 : 0.5 }}
@@ -705,6 +785,97 @@ export default function PublicApp() {
               {t("startReport", lang)}
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // MATCH CHECK — instant registry check before opening chat
+  if (screen === "match-check") {
+    const hasMatches = preCheckMatches.length > 0;
+    return (
+      <div className="page">
+        <div className="page-header">
+          <button onClick={() => setScreen("report-missing")} style={{ fontSize: 20, background: "none" }}>←</button>
+          <div>
+            <div style={{ fontWeight: 700 }}>{hasMatches ? "✅ Possible Matches Found!" : "🔍 Checking all 10 centers…"}</div>
+            <div style={{ fontSize: 11, color: "#78716c" }}>Live registry scan</div>
+          </div>
+          <LanguageSelector value={lang} onChange={setLang} compact />
+        </div>
+
+        <div className="page-body">
+          {hasMatches ? (
+            <>
+              <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, color: "#15803d", fontSize: 14 }}>
+                  🎯 {preCheckMatches.length} person{preCheckMatches.length > 1 ? "s" : ""} matching your description found at help center{preCheckMatches.length > 1 ? "s" : ""}
+                </div>
+                <div style={{ fontSize: 12, color: "#166534", marginTop: 2 }}>Check below — they may already be safe!</div>
+              </div>
+
+              {preCheckMatches.map((fp) => {
+                const center = registry.getCenterById(fp.centerId);
+                return (
+                  <div key={fp.id} className="card" style={{ borderColor: "#16a34a", borderWidth: 2 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>
+                          {fp.gender === "female" ? "👩" : fp.gender === "male" ? "👨" : "🧑"} {fp.gender} · {fp.ageRange}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#57534e", marginTop: 2 }}>👗 {fp.clothing}</div>
+                        <div style={{ fontSize: 11, color: "#78716c" }}>📍 Found at: {fp.foundZone}</div>
+                        <div style={{ fontSize: 11, color: "#78716c" }}>🗣 Speaks: {fp.languageSpoken}</div>
+                        <div style={{ fontSize: 11, color: "#57534e", marginTop: 2 }}>💊 Condition: {fp.condition}</div>
+                      </div>
+                      <span style={{ fontFamily: "monospace", fontSize: 10, background: "#e0f2fe", color: "#0369a1", padding: "2px 6px", borderRadius: 4 }}>{fp.id}</span>
+                    </div>
+
+                    {/* Center info */}
+                    <div style={{ background: "#eff6ff", borderRadius: 8, padding: "8px 10px", marginTop: 8 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, color: "#1d4ed8" }}>🏥 Currently at: {fp.centerName}</div>
+                      {center?.contactNumber && (
+                        <a href={`tel:${center.contactNumber}`} style={{ fontSize: 12, color: "#1d4ed8", display: "block", marginTop: 2 }}>📞 {center.contactNumber}</a>
+                      )}
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                      {center && (
+                        <button
+                          onClick={() => {
+                            setRouteTo({ lat: center.location.lat, lng: center.location.lng, name: center.name });
+                            setSelectedDeskId(center.id);
+                            setScreen("landing");
+                            setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 100);
+                          }}
+                          className="btn btn-primary flex-1"
+                          style={{ fontSize: 12 }}
+                        >
+                          🗺 Get directions
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setScreen("chat")}
+                        className="btn btn-ghost flex-1"
+                        style={{ fontSize: 12 }}
+                      >
+                        ❌ Not this person
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div style={{ textAlign: "center", marginTop: 12 }}>
+                <button onClick={() => setScreen("chat")} className="btn btn-ghost btn-full" style={{ fontSize: 13 }}>
+                  None of these match — chat with agent →
+                </button>
+              </div>
+            </>
+          ) : (
+            // No matches — show spinner then auto-proceed to chat
+            <MatchCheckEmpty onProceed={() => setScreen("chat")} />
+          )}
         </div>
       </div>
     );
@@ -807,22 +978,11 @@ export default function PublicApp() {
             </div>
           )}
 
-          {/* Claude's response */}
+          {/* Claude's response — re-uses the same markdown renderer as chat */}
           {agentResult?.finalText && (
             <div className="card" style={{ marginTop: 12 }}>
               <div className="card-title">{t("instructions", lang)}</div>
-              <div style={{ fontSize: 14, lineHeight: 1.7 }}>
-                {agentResult.finalText.split("\n").map((line, i, arr) => (
-                  <span key={i}>
-                    {line.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
-                      part.startsWith("**") && part.endsWith("**")
-                        ? <strong key={j}>{part.slice(2, -2)}</strong>
-                        : <span key={j}>{part}</span>
-                    )}
-                    {i < arr.length - 1 && <br />}
-                  </span>
-                ))}
-              </div>
+              <MarkdownView text={agentResult.finalText} />
             </div>
           )}
 

@@ -41,7 +41,13 @@ export type TKey =
   | "locatingCenters"
   // Result screen
   | "reportDetails" | "referenceId" | "handoverCode" | "handoverCodeHint"
-  | "centersAlerted" | "allCentersNotified" | "volunteerLabel";
+  | "centersAlerted" | "allCentersNotified" | "volunteerLabel"
+  // Voice-first screen
+  | "voiceTapToSpeak" | "voiceListening" | "voiceGotIt"
+  | "voiceAnyLang" | "voiceTapStop"
+  | "voiceHearing" | "voiceWhatYouSaid"
+  | "voiceSendThis" | "voiceTryAgain"
+  | "voiceSpeak" | "voiceWeSearch" | "voiceReunite" | "voiceError";
 
 type Translations = Record<TKey, string>;
 
@@ -148,6 +154,19 @@ const en: Translations = {
   centersAlerted: "Centers alerted",
   allCentersNotified: "All nearby help centers and volunteers have been notified",
   volunteerLabel: "Volunteer",
+  voiceTapToSpeak: "Tap mic to speak",
+  voiceListening: "Listening…",
+  voiceGotIt: "Got it!",
+  voiceAnyLang: "Speak in any language",
+  voiceTapStop: "Tap again to stop",
+  voiceHearing: "Hearing…",
+  voiceWhatYouSaid: "What you said:",
+  voiceSendThis: "✅ Send this",
+  voiceTryAgain: "🔄 Try again",
+  voiceSpeak: "Speak",
+  voiceWeSearch: "We search",
+  voiceReunite: "Reunite",
+  voiceError: "Could not capture audio — please try again.",
 };
 
 const mr: Translations = {
@@ -253,6 +272,19 @@ const mr: Translations = {
   centersAlerted: "केंद्रे सतर्क",
   allCentersNotified: "सर्व जवळची केंद्रे आणि स्वयंसेवकांना सूचित केले",
   volunteerLabel: "स्वयंसेवक",
+  voiceTapToSpeak: "माईक दाबा आणि बोला",
+  voiceListening: "ऐकत आहोत…",
+  voiceGotIt: "ऐकलं!",
+  voiceAnyLang: "कोणत्याही भाषेत बोला",
+  voiceTapStop: "थांबवण्यासाठी पुन्हा दाबा",
+  voiceHearing: "ऐकत आहोत…",
+  voiceWhatYouSaid: "तुम्ही म्हणालात:",
+  voiceSendThis: "✅ आत्ता पाठवा",
+  voiceTryAgain: "🔄 पुन्हा बोला",
+  voiceSpeak: "बोला",
+  voiceWeSearch: "शोधू",
+  voiceReunite: "मिळू",
+  voiceError: "आवाज मिळाला नाही — पुन्हा प्रयत्न करा.",
 };
 
 const hi: Translations = {
@@ -358,6 +390,19 @@ const hi: Translations = {
   centersAlerted: "केंद्र सूचित",
   allCentersNotified: "सभी नजदीकी केंद्र और स्वयंसेवक सूचित",
   volunteerLabel: "स्वयंसेवक",
+  voiceTapToSpeak: "माइक दबाएं और बोलें",
+  voiceListening: "सुन रहे हैं…",
+  voiceGotIt: "सुन लिया!",
+  voiceAnyLang: "किसी भी भाषा में बोलें",
+  voiceTapStop: "रोकने के लिए फिर दबाएं",
+  voiceHearing: "सुन रहे हैं…",
+  voiceWhatYouSaid: "आपने कहा:",
+  voiceSendThis: "✅ अभी भेजें",
+  voiceTryAgain: "🔄 फिर बोलें",
+  voiceSpeak: "बोलें",
+  voiceWeSearch: "खोजेंगे",
+  voiceReunite: "मिलेंगे",
+  voiceError: "आवाज़ नहीं मिली — फिर कोशिश करें।",
 };
 
 const gu: Translations = {
@@ -463,6 +508,19 @@ const gu: Translations = {
   centersAlerted: "કેન્દ્ર સૂચિત",
   allCentersNotified: "બધા નજીકના કેન્દ્રો અને સ્વયંસેવકોને સૂચિત",
   volunteerLabel: "સ્વયંસેવક",
+  voiceTapToSpeak: "માઇક દબાવો અને બોલો",
+  voiceListening: "સાંભળી રહ્યા છીએ…",
+  voiceGotIt: "સાંભળ્યું!",
+  voiceAnyLang: "કોઈ પણ ભાષામાં બોલો",
+  voiceTapStop: "રોકવા ફરી દબાવો",
+  voiceHearing: "સાંભળી રહ્યા છીએ…",
+  voiceWhatYouSaid: "તમે કહ્યું:",
+  voiceSendThis: "✅ હમણાં મોકલો",
+  voiceTryAgain: "🔄 ફરી બોલો",
+  voiceSpeak: "બોલો",
+  voiceWeSearch: "શોધીશું",
+  voiceReunite: "મળીશું",
+  voiceError: "અવાજ ન મળ્યો — ફરી પ્રયાસ કરો.",
 };
 
 const bn: Translations = {
@@ -568,6 +626,19 @@ const bn: Translations = {
   centersAlerted: "কেন্দ্র সতর্ক",
   allCentersNotified: "সব কাছের কেন্দ্র ও স্বেচ্ছাসেবক সূচিত",
   volunteerLabel: "স্বেচ্ছাসেবক",
+  voiceTapToSpeak: "মাইক চাপুন এবং বলুন",
+  voiceListening: "শুনছি…",
+  voiceGotIt: "পেলাম!",
+  voiceAnyLang: "যেকোনো ভাষায় বলুন",
+  voiceTapStop: "থামাতে আবার চাপুন",
+  voiceHearing: "শুনছি…",
+  voiceWhatYouSaid: "আপনি বললেন:",
+  voiceSendThis: "✅ এখনই পাঠান",
+  voiceTryAgain: "🔄 আবার বলুন",
+  voiceSpeak: "বলুন",
+  voiceWeSearch: "খুঁজব",
+  voiceReunite: "মিলব",
+  voiceError: "শব্দ ধরা যায়নি — আবার চেষ্টা করুন।",
 };
 
 const te: Translations = {
@@ -673,6 +744,19 @@ const te: Translations = {
   centersAlerted: "కేంద్రాలు అప్రమత్తం",
   allCentersNotified: "అన్ని సమీప కేంద్రాలు మరియు వాలంటీర్లకు తెలియజేశారు",
   volunteerLabel: "వాలంటీర్",
+  voiceTapToSpeak: "మైక్ నొక్కి మాట్లాడండి",
+  voiceListening: "వింటున్నాం…",
+  voiceGotIt: "విన్నాం!",
+  voiceAnyLang: "ఏ భాషలోనైనా మాట్లాడండి",
+  voiceTapStop: "ఆపడానికి మళ్ళీ నొక్కండి",
+  voiceHearing: "వింటున్నాం…",
+  voiceWhatYouSaid: "మీరు చెప్పింది:",
+  voiceSendThis: "✅ ఇప్పుడు పంపండి",
+  voiceTryAgain: "🔄 మళ్ళీ చెప్పండి",
+  voiceSpeak: "మాట్లాడండి",
+  voiceWeSearch: "వెతుకుతాం",
+  voiceReunite: "కలుస్తాం",
+  voiceError: "ఆడియో ఎంచుకోలేకపోయాం — మళ్ళీ ప్రయత్నించండి.",
 };
 
 const ta: Translations = {
@@ -778,6 +862,19 @@ const ta: Translations = {
   centersAlerted: "மையங்கள் எச்சரிக்கப்பட்டன",
   allCentersNotified: "அருகிலுள்ள அனைத்து மையங்களும் தன்னார்வலர்களும் தெரிவிக்கப்பட்டனர்",
   volunteerLabel: "தன்னார்வலர்",
+  voiceTapToSpeak: "மைக்கை அழுத்தி பேசுங்கள்",
+  voiceListening: "கேட்கிறோம்…",
+  voiceGotIt: "கேட்டோம்!",
+  voiceAnyLang: "எந்த மொழியிலும் பேசுங்கள்",
+  voiceTapStop: "நிறுத்த மீண்டும் அழுத்துங்கள்",
+  voiceHearing: "கேட்கிறோம்…",
+  voiceWhatYouSaid: "நீங்கள் சொன்னது:",
+  voiceSendThis: "✅ இப்போது அனுப்புங்கள்",
+  voiceTryAgain: "🔄 மீண்டும் பேசுங்கள்",
+  voiceSpeak: "பேசுங்கள்",
+  voiceWeSearch: "தேடுவோம்",
+  voiceReunite: "சந்திப்போம்",
+  voiceError: "ஒலி பதிவாகவில்லை — மீண்டும் முயற்சிக்கவும்.",
 };
 
 const pa: Translations = {
@@ -883,6 +980,19 @@ const pa: Translations = {
   centersAlerted: "ਕੇਂਦਰ ਸੁਚੇਤ",
   allCentersNotified: "ਸਾਰੇ ਨੇੜੇ ਦੇ ਕੇਂਦਰ ਅਤੇ ਵਲੰਟੀਅਰ ਸੂਚਿਤ",
   volunteerLabel: "ਵਲੰਟੀਅਰ",
+  voiceTapToSpeak: "ਮਾਈਕ ਦਬਾਓ ਅਤੇ ਬੋਲੋ",
+  voiceListening: "ਸੁਣ ਰਹੇ ਹਾਂ…",
+  voiceGotIt: "ਸੁਣਿਆ!",
+  voiceAnyLang: "ਕਿਸੇ ਵੀ ਭਾਸ਼ਾ ਵਿੱਚ ਬੋਲੋ",
+  voiceTapStop: "ਰੋਕਣ ਲਈ ਫਿਰ ਦਬਾਓ",
+  voiceHearing: "ਸੁਣ ਰਹੇ ਹਾਂ…",
+  voiceWhatYouSaid: "ਤੁਸੀਂ ਕਿਹਾ:",
+  voiceSendThis: "✅ ਹੁਣੇ ਭੇਜੋ",
+  voiceTryAgain: "🔄 ਫਿਰ ਬੋਲੋ",
+  voiceSpeak: "ਬੋਲੋ",
+  voiceWeSearch: "ਲੱਭਾਂਗੇ",
+  voiceReunite: "ਮਿਲਾਂਗੇ",
+  voiceError: "ਆਵਾਜ਼ ਨਹੀਂ ਮਿਲੀ — ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
 };
 
 const kn: Translations = {
@@ -988,6 +1098,19 @@ const kn: Translations = {
   centersAlerted: "ಕೇಂದ್ರಗಳು ಎಚ್ಚರಿಸಲ್ಪಟ್ಟಿವೆ",
   allCentersNotified: "ಎಲ್ಲ ಹತ್ತಿರದ ಕೇಂದ್ರಗಳು ಮತ್ತು ಸ್ವಯಂಸೇವಕರಿಗೆ ತಿಳಿಸಲಾಗಿದೆ",
   volunteerLabel: "ಸ್ವಯಂಸೇವಕ",
+  voiceTapToSpeak: "ಮೈಕ್ ಒತ್ತಿ ಮಾತನಾಡಿ",
+  voiceListening: "ಕೇಳುತ್ತಿದ್ದೇವೆ…",
+  voiceGotIt: "ಕೇಳಿದೆವು!",
+  voiceAnyLang: "ಯಾವ ಭಾಷೆಯಲ್ಲಾದರೂ ಮಾತನಾಡಿ",
+  voiceTapStop: "ನಿಲ್ಲಿಸಲು ಮತ್ತೆ ಒತ್ತಿ",
+  voiceHearing: "ಕೇಳುತ್ತಿದ್ದೇವೆ…",
+  voiceWhatYouSaid: "ನೀವು ಹೇಳಿದ್ದು:",
+  voiceSendThis: "✅ ಈಗಲೇ ಕಳಿಸಿ",
+  voiceTryAgain: "🔄 ಮತ್ತೆ ಹೇಳಿ",
+  voiceSpeak: "ಮಾತನಾಡಿ",
+  voiceWeSearch: "ಹುಡುಕುತ್ತೇವೆ",
+  voiceReunite: "ಸೇರಿಕೊಳ್ಳೋಣ",
+  voiceError: "ಶಬ್ದ ದಾಖಲಾಗಲಿಲ್ಲ — ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
 };
 
 // Map lang codes → translation object (fallback to Hindi for unbuilt languages)

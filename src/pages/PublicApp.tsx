@@ -21,6 +21,7 @@ import type { AgentResult } from "../core/agent";
 import type { ReunionPoint, FoundPerson } from "../types";
 import { RAMKUND_DEFAULT } from "../services/location";
 import { compressImage } from "../utils/imageUtils";
+import { startSpeech, isSpeechSupported } from "../services/speech";
 
 /** Extract a human-friendly zone label from a center/zone name — hides exact desk identity */
 function maskZone(centerOrZone: string): string {
@@ -99,143 +100,150 @@ function MatchCheckEmpty({ onProceed }: { onProceed: () => void }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VoiceFirstScreen — press-and-hold to speak, no typing needed
+// VoiceFirstScreen — tap mic to start, tap again to stop, then Send
 // ─────────────────────────────────────────────────────────────────────────────
 function VoiceFirstScreen({
   lang, onBack, onTranscript,
 }: { lang: string; onBack: () => void; onTranscript: (text: string) => void }) {
   const [listening, setListening] = useState(false);
+  const [interim, setInterim] = useState("");
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
-  const recogRef = useRef<unknown>(null);
+  const sessionRef = useRef<{ stop: () => void } | null>(null);
+  const lastInterimRef = useRef("");
 
-  type SRResult = { transcript: string };
-  type SRResultList = { length: number; [k: number]: { [k: number]: SRResult } };
-  type AnySR = {
-    lang: string; interimResults: boolean; maxAlternatives: number; continuous: boolean;
-    onresult: ((e: { results: SRResultList }) => void) | null;
-    onerror: (() => void) | null; onend: (() => void) | null;
-    start: () => void; stop: () => void;
-  };
-  type WW = Window & { SpeechRecognition?: new () => AnySR; webkitSpeechRecognition?: new () => AnySR };
+  useEffect(() => () => { sessionRef.current?.stop(); }, []);
 
-  const LANG_CODES: Record<string, string> = {
-    hi: "hi-IN", mr: "mr-IN", en: "en-IN", gu: "gu-IN", bn: "bn-IN",
-    te: "te-IN", ta: "ta-IN", pa: "pa-IN", kn: "kn-IN",
-  };
+  function handleMicTap() {
+    if (done) return;
 
-  function startListening() {
-    const w = window as WW;
-    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (!Ctor) { setError("Voice not supported in this browser. Please type instead."); return; }
-    const sr = new Ctor();
-    sr.lang = LANG_CODES[lang] ?? "hi-IN";
-    sr.interimResults = true;
-    sr.maxAlternatives = 1;
-    sr.continuous = true;
-    sr.onresult = (e) => {
-      let text = "";
-      // SpeechRecognitionResultList is array-like, not a plain object —
-      // must use e.results.length, not Object.keys(e.results).length
-      for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript + " ";
-      setTranscript(text.trim());
-    };
-    sr.onerror = () => { setError("Could not capture audio. Please try again."); setListening(false); };
-    sr.onend = () => setListening(false);
-    sr.start();
-    recogRef.current = sr;
-    setListening(true);
+    if (listening) {
+      sessionRef.current?.stop();
+      return;
+    }
+
     setError("");
-  }
+    setInterim("");
+    setTranscript("");
+    lastInterimRef.current = "";
+    let gotFinal = false;
 
-  function stopListening() {
-    (recogRef.current as AnySR | null)?.stop();
-    setListening(false);
+    setListening(true);
+    const session = startSpeech({
+      langCode: lang,
+      onInterim: (t) => { lastInterimRef.current = t; setInterim(t); },
+      onFinal: (t) => {
+        gotFinal = true;
+        setInterim("");
+        setTranscript(t);
+        setListening(false);
+      },
+      onStateChange: (s) => {
+        if (s === "idle") {
+          setListening(false);
+          if (!gotFinal && lastInterimRef.current) {
+            setInterim("");
+            setTranscript(lastInterimRef.current);
+          }
+        }
+        if (s === "error") {
+          setListening(false);
+          setInterim("");
+          setError("error");
+        }
+      },
+    });
+    sessionRef.current = session;
   }
 
   return (
     <div className="page" style={{ background: "linear-gradient(180deg,#f5f3ff 0%,#ede9fe 100%)" }}>
       <div className="page-header" style={{ background: "transparent", borderBottom: "1px solid #ddd6fe" }}>
         <button onClick={onBack} style={{ fontSize: 20, background: "none", color: "#5b21b6" }}>←</button>
-        <div style={{ fontWeight: 700, fontSize: 15, color: "#5b21b6" }}>Speak for Help · बोलकर मदद पाएं</div>
+        <div style={{ fontWeight: 700, fontSize: 15, color: "#5b21b6" }}>{t("speakForHelp", lang)}</div>
         <div />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 20px", gap: 24, flex: 1 }}>
-        {/* Big illustrated instruction */}
+        {/* Instruction */}
         <div style={{ textAlign: "center" }}>
           <MicLargeIcon size={80} color="#7c3aed" />
           <div style={{ marginTop: 16, fontSize: 20, fontWeight: 700, color: "#4c1d95" }}>
-            {listening ? "Listening… · सुन रहे हैं…" : "Press & Hold · दबाएं और बोलें"}
+            {listening ? t("voiceListening", lang) : transcript ? t("voiceGotIt", lang) : t("voiceTapToSpeak", lang)}
           </div>
           <div style={{ fontSize: 14, color: "#6d28d9", marginTop: 6 }}>
-            Speak in any language · किसी भी भाषा में बोलें
+            {listening ? t("voiceTapStop", lang) : t("voiceAnyLang", lang)}
           </div>
         </div>
 
-        {/* Big mic button */}
-        <button
-          onMouseDown={startListening}
-          onMouseUp={stopListening}
-          onTouchStart={startListening}
-          onTouchEnd={stopListening}
-          style={{
-            width: 120, height: 120, borderRadius: "50%",
-            background: listening ? "#7c3aed" : "#ede9fe",
-            border: `4px solid ${listening ? "#5b21b6" : "#c4b5fd"}`,
-            cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: listening ? "0 0 0 16px rgba(124,58,237,.2), 0 0 0 32px rgba(124,58,237,.08)" : "0 4px 16px rgba(124,58,237,.2)",
-            transition: "all .2s",
-            userSelect: "none",
-          }}
-        >
-          <MicLargeIcon size={56} color={listening ? "white" : "#7c3aed"} />
-        </button>
+        {/* Big mic button — tap to start, tap again to stop */}
+        {!transcript && (
+          <button
+            onClick={handleMicTap}
+            style={{
+              width: 120, height: 120, borderRadius: "50%",
+              background: listening ? "#7c3aed" : "#ede9fe",
+              border: `4px solid ${listening ? "#5b21b6" : "#c4b5fd"}`,
+              cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: listening
+                ? "0 0 0 16px rgba(124,58,237,.2), 0 0 0 32px rgba(124,58,237,.08)"
+                : "0 4px 16px rgba(124,58,237,.2)",
+              transition: "all .2s",
+            }}
+          >
+            {listening
+              ? <span className="spinner" style={{ width: 40, height: 40, borderColor: "rgba(255,255,255,.3)", borderTopColor: "white", borderWidth: 4 }} />
+              : <MicLargeIcon size={56} color="#7c3aed" />}
+          </button>
+        )}
 
-        {listening && (
-          <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 14, color: "#7c3aed", fontWeight: 600 }}>
-            <span className="spinner" style={{ borderColor: "#ddd6fe", borderTopColor: "#7c3aed", width: 16, height: 16 }} />
-            Recording… release when done
+        {/* Live interim text */}
+        {interim && (
+          <div style={{ width: "100%", background: "white", borderRadius: 12, padding: 16, border: "2px solid #c4b5fd" }}>
+            <div style={{ fontSize: 12, color: "#6d28d9", fontWeight: 700, marginBottom: 6 }}>{t("voiceHearing", lang)}</div>
+            <div style={{ fontSize: 15, color: "#78716c", lineHeight: 1.6, fontStyle: "italic" }}>
+              {interim}<span style={{ animation: "cursor-blink 1s infinite", marginLeft: 2 }}>|</span>
+            </div>
           </div>
         )}
 
-        {/* Transcript */}
+        {/* Final transcript */}
         {transcript && (
-          <div style={{ width: "100%", background: "white", borderRadius: 12, padding: 16, border: "2px solid #c4b5fd" }}>
-            <div style={{ fontSize: 12, color: "#6d28d9", fontWeight: 700, marginBottom: 6 }}>What you said:</div>
+          <div style={{ width: "100%", background: "white", borderRadius: 12, padding: 16, border: "2px solid #a78bfa" }}>
+            <div style={{ fontSize: 12, color: "#6d28d9", fontWeight: 700, marginBottom: 6 }}>{t("voiceWhatYouSaid", lang)}</div>
             <div style={{ fontSize: 15, color: "#1e293b", lineHeight: 1.6 }}>{transcript}</div>
           </div>
         )}
 
-        {error && <div style={{ color: "#dc2626", fontSize: 13, textAlign: "center" }}>{error}</div>}
+        {error && <div style={{ color: "#dc2626", fontSize: 13, textAlign: "center" }}>{t("voiceError", lang)}</div>}
 
-        {/* Actions */}
+        {/* Actions — shown after transcript captured */}
         {transcript && !done && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
             <button
               onClick={() => { setDone(true); onTranscript(transcript); }}
               style={{ width: "100%", padding: "14px", background: "#7c3aed", color: "white", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" }}
             >
-              ✅ Send this — अभी भेजें
+              {t("voiceSendThis", lang)}
             </button>
             <button
-              onClick={() => { setTranscript(""); setDone(false); }}
+              onClick={() => { setTranscript(""); setDone(false); setInterim(""); }}
               style={{ width: "100%", padding: "12px", background: "white", color: "#6d28d9", border: "2px solid #c4b5fd", borderRadius: 12, fontSize: 14, cursor: "pointer" }}
             >
-              🔄 Try again — फिर बोलें
+              {t("voiceTryAgain", lang)}
             </button>
           </div>
         )}
 
-        {/* Illustration of the flow */}
-        {!transcript && !listening && (
+        {/* Flow illustration — shown only on idle */}
+        {!transcript && !listening && !interim && (
           <div style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 8 }}>
             {[
-              { icon: <MicLargeIcon size={28} color="#7c3aed" />, label: "Speak · बोलें" },
-              { icon: <SearchPersonIcon size={28} color="#1d4ed8" />, label: "We search · खोजेंगे" },
-              { icon: <ReunionIcon size={28} color="#16a34a" />, label: "Reunite · मिलेंगे" },
+              { icon: <MicLargeIcon size={28} color="#7c3aed" />, label: t("voiceSpeak", lang) },
+              { icon: <SearchPersonIcon size={28} color="#1d4ed8" />, label: t("voiceWeSearch", lang) },
+              { icon: <ReunionIcon size={28} color="#16a34a" />, label: t("voiceReunite", lang) },
             ].map((s, i) => (
               <div key={i} style={{ background: "white", borderRadius: 10, padding: "12px 8px", textAlign: "center", border: "1px solid #ddd6fe" }}>
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>{s.icon}</div>
@@ -271,6 +279,9 @@ export default function PublicApp() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [contactNumber, setContactNumber] = useState("");
   const [missingDescription, setMissingDescription] = useState("");
+  const [descVoiceListening, setDescVoiceListening] = useState(false);
+  const [descVoiceInterim, setDescVoiceInterim] = useState("");
+  const descVoiceSessionRef = useRef<{ stop: () => void } | null>(null);
   const [preCheckMatches, setPreCheckMatches] = useState<FoundPerson[]>([]);
   // i-am-lost form fields (collected before chat)
   const [lostName, setLostName] = useState("");
@@ -281,6 +292,7 @@ export default function PublicApp() {
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
   const [registerOutput, setRegisterOutput] = useState<Record<string, unknown> | null>(null);
   const [reunionPoint, setReunionPoint] = useState<ReunionPoint | null>(null);
+  const [chatResultReady, setChatResultReady] = useState(false);
   const [refNumber, setRefNumber] = useState<string | null>(null);
   const [dpdpConsent, setDpdpConsent] = useState(false);
   const [sosLoading, setSosLoading] = useState(false);
@@ -292,6 +304,8 @@ export default function PublicApp() {
   const [showChokepoints, setShowChokepoints] = useState(false);
   const [nearbyVolunteers, setNearbyVolunteers] = useState<VolunteerRecord[]>([]);
   const [nearbyPolice, setNearbyPolice] = useState<{ id: string; name: string; distKm: number; walkMin: number; lat: number; lng: number }[]>([]);
+  // Raw voice transcript from VoiceFirstScreen — sent as-is to Claude (no English wrapping)
+  const [voiceFirstTranscript, setVoiceFirstTranscript] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const cctv = cctvData as CctvPoint[];
@@ -447,11 +461,45 @@ export default function PublicApp() {
       }
     }
 
-    setScreen("result");
+    setChatResultReady(true);
+  }
+
+  // ── Detect whether user said "I am lost" vs "looking for someone" ─────────
+  function detectVoiceIntent(text: string): FlowType {
+    const lower = text.toLowerCase();
+    const lostPatterns = [
+      // English
+      "i am lost", "i'm lost", "i got lost", "am lost", "help me",
+      // Hindi
+      "kho gaya", "kho gayi", "kho gaye", "bhatak gaya", "bhatak gayi", "rasta bhool", "mujhe rasta",
+      // Marathi
+      "harwalo", "harwali", "harwale", "chuktalo", "chuktali", "raasta chuktala",
+      // Gujarati
+      "khowai gayo", "khowai gayi", "rasto bhulo",
+      // Bengali
+      "hariye", "haria gechi", "path hariye",
+      // Telugu
+      "tappopoyana", "tappipoyanu", "daavinundi",
+      // Tamil
+      "tholainthen", "tholainthom", "vazhiyarivilen",
+      // Punjabi
+      "kho geya", "kho gayi", "rasta bhulia",
+      // Kannada
+      "khaali hogide", "daaributte", "heltiru",
+    ];
+    return lostPatterns.some(p => lower.includes(p)) ? "i-am-lost" : "report-missing";
   }
 
   // ── Build initial prompt based on flow ────────────────────────────────────
   function buildInitialPrompt(): string {
+    // Voice-first: send the raw transcript directly — no English wrapping.
+    // Append GPS as bare numbers (language-neutral). Claude infers intent from the voice text.
+    if (voiceFirstTranscript) {
+      const locStr = userLocation
+        ? ` [GPS ${userLocation.lat.toFixed(4)},${userLocation.lng.toFixed(4)}]`
+        : "";
+      return `${voiceFirstTranscript.trim()}${locStr}`;
+    }
     if (flowType === "i-am-lost") {
       const locStr = userLocation
         ? ` My GPS: ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}.`
@@ -871,9 +919,10 @@ export default function PublicApp() {
   // VOICE-FIRST — for illiterate / non-typing users
   if (screen === "voice-first") {
     return <VoiceFirstScreen lang={lang} onBack={() => setScreen("landing")} onTranscript={(text) => {
-      // Feed transcript into the chat as a "report-missing" message
-      setFlowType("report-missing");
-      setMissingDescription(text);
+      const intent = detectVoiceIntent(text);
+      setFlowType(intent);
+      setVoiceFirstTranscript(text);   // raw — sent directly, no English wrapping
+      setMissingDescription(text);     // kept for search pre-checks
       setScreen("chat");
     }} />;
   }
@@ -1043,7 +1092,59 @@ export default function PublicApp() {
             </div>
 
             <div className="form-row">
-              <label className="input-label">📝 {t("describePersonLabel", lang)}</label>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <label className="input-label" style={{ margin: 0 }}>📝 {t("describePersonLabel", lang)}</label>
+                {isSpeechSupported() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (descVoiceListening) {
+                        descVoiceSessionRef.current?.stop();
+                        setDescVoiceListening(false);
+                        return;
+                      }
+                      setDescVoiceListening(true);
+                      setDescVoiceInterim("");
+                      let lastInterim = "";
+                      let gotFinal = false;
+                      const appendText = (text: string) => {
+                        setDescVoiceInterim("");
+                        setMissingDescription(prev => {
+                          const updated = prev ? `${prev.trim()} ${text}` : text;
+                          setErrors(ev => ({ ...ev, missingDescription: validateDescription(updated) }));
+                          return updated;
+                        });
+                        setDescVoiceListening(false);
+                      };
+                      const session = startSpeech({
+                        langCode: lang,
+                        onInterim: (t) => { lastInterim = t; setDescVoiceInterim(t); },
+                        onFinal: (text) => { gotFinal = true; appendText(text); },
+                        onStateChange: (s) => {
+                          if (s === "idle") {
+                            if (!gotFinal && lastInterim) appendText(lastInterim);
+                            else { setDescVoiceInterim(""); setDescVoiceListening(false); }
+                          }
+                          if (s === "error") { setDescVoiceInterim(""); setDescVoiceListening(false); }
+                        },
+                      });
+                      descVoiceSessionRef.current = session;
+                    }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5,
+                      fontSize: 12, padding: "4px 10px", borderRadius: 8,
+                      background: descVoiceListening ? "#fee2e2" : "#f1f5f9",
+                      color: descVoiceListening ? "#dc2626" : "#475569",
+                      border: `1px solid ${descVoiceListening ? "#fca5a5" : "#cbd5e1"}`,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {descVoiceListening
+                      ? <><span className="spinner" style={{ width: 10, height: 10, borderTopColor: "#dc2626", borderColor: "#fca5a5" }} /> Stop</>
+                      : <>🎤 Speak</>}
+                  </button>
+                )}
+              </div>
               <textarea
                 value={missingDescription}
                 onChange={(e) => {
@@ -1053,9 +1154,24 @@ export default function PublicApp() {
                 placeholder={t("describePersonPlaceholder", lang)}
                 className="input"
                 rows={4}
-                style={{ resize: "none", lineHeight: 1.5, borderColor: errors.missingDescription ? "#dc2626" : undefined }}
+                style={{ resize: "none", lineHeight: 1.5, borderColor: descVoiceListening ? "#f97316" : errors.missingDescription ? "#dc2626" : undefined, transition: "border-color .2s" }}
               />
-              {errors.missingDescription && <p style={{ fontSize: 11, color: "#dc2626", marginTop: 3 }}>⚠️ {errors.missingDescription}</p>}
+              {descVoiceListening && (
+                <div style={{ marginTop: 6, borderRadius: 8, border: "1.5px solid #f97316", background: "#fff8f4", padding: "8px 12px", minHeight: 36 }}>
+                  {descVoiceInterim ? (
+                    <span style={{ fontSize: 13, color: "#1c1917" }}>
+                      {descVoiceInterim}
+                      <span style={{ animation: "cursor-blink 1s infinite", marginLeft: 2, color: "#f97316" }}>|</span>
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 12, color: "#f97316", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span className="spinner" style={{ width: 10, height: 10, borderTopColor: "#f97316", borderColor: "#fed7aa" }} />
+                      Listening… speak clearly
+                    </span>
+                  )}
+                </div>
+              )}
+              {errors.missingDescription && !descVoiceListening && <p style={{ fontSize: 11, color: "#dc2626", marginTop: 3 }}>⚠️ {errors.missingDescription}</p>}
               <p style={{ fontSize: 11, color: "#a8a29e", marginTop: 4 }}>{t("describePersonHint", lang)}</p>
             </div>
 
@@ -1231,15 +1347,42 @@ export default function PublicApp() {
     return (
       <div className="page">
         <div className="page-header">
-          <button onClick={() => setScreen(flowType === "i-am-lost" ? "i-am-lost" : "report-missing")} style={{ fontSize: 20, background: "none" }}>←</button>
+          <button onClick={() => {
+            setVoiceFirstTranscript(null);
+            setScreen(voiceFirstTranscript ? "landing" : flowType === "i-am-lost" ? "i-am-lost" : "report-missing");
+            setChatResultReady(false);
+          }} style={{ fontSize: 20, background: "none" }}>←</button>
           <div>
             <div style={{ fontWeight: 700 }}>
-              {flowType === "i-am-lost" ? "🙋 I Am Lost" : "🔍 Find My Family Member"}
+              {flowType === "i-am-lost" ? `🙋 ${t("iAmLostTitle", lang)}` : `🔍 ${t("lookingForSomeone", lang)}`}
             </div>
             <div style={{ fontSize: 11, color: "#78716c" }}>{t("searchingCenters", lang)}</div>
           </div>
           <LanguageSelector value={lang} onChange={setLang} compact />
         </div>
+
+        {/* Sticky result banner — appears after registration, lets user read response first */}
+        {chatResultReady && (
+          <div style={{
+            background: "#f0fdf4", borderBottom: "2px solid #16a34a",
+            padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+          }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: "#15803d" }}>✅ Case registered successfully</div>
+              <div style={{ fontSize: 11, color: "#166534" }}>All nearby centers have been alerted</div>
+            </div>
+            <button
+              onClick={() => setScreen("result")}
+              style={{
+                flexShrink: 0, padding: "8px 14px", borderRadius: 8,
+                background: "#16a34a", color: "white", border: "none",
+                fontWeight: 700, fontSize: 13, cursor: "pointer",
+              }}
+            >
+              View Details →
+            </button>
+          </div>
+        )}
 
         <ChatAgent
           langCode={lang}

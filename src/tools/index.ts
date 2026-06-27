@@ -393,6 +393,49 @@ const getReunionPoint: AgentTool = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Tool 6: verify_handover
+// ─────────────────────────────────────────────────────────────────────────────
+const verifyHandover: AgentTool = {
+  name: "verify_handover",
+  description:
+    "Verify a 4-digit handover PIN to confirm identity before releasing a found person to a claimant. Use when a help desk operator or family member wants to resolve/close a case after reunion. Returns ok:true if the PIN matches the report, and marks the case as resolved.",
+  input_schema: {
+    type: "object",
+    properties: {
+      reportId: {
+        type: "string",
+        description: "The missing person report reference number (e.g. LP-1234567890-ABCD)",
+      },
+      verificationCode: {
+        type: "string",
+        description: "The 4-digit PIN the claimant quotes (shown on their registration result screen)",
+      },
+      foundPersonId: {
+        type: "string",
+        description: "The ID of the found person at the center (optional, helps log the match)",
+      },
+    },
+    required: ["reportId", "verificationCode"],
+  },
+  run: async (input) => {
+    const result = registry.verifyHandover(
+      input.reportId as string,
+      (input.foundPersonId as string) ?? "",
+      input.verificationCode as string,
+    );
+    if (result.ok) {
+      registry.logHandover(
+        input.reportId as string,
+        (input.foundPersonId as string) ?? "",
+        "help-desk",
+        "operator",
+      );
+    }
+    return result;
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Export all tools
 // ─────────────────────────────────────────────────────────────────────────────
 export const allTools: AgentTool[] = [
@@ -401,4 +444,5 @@ export const allTools: AgentTool[] = [
   registerFoundPerson,
   notifyHelpDesk,
   getReunionPoint,
+  verifyHandover,
 ];

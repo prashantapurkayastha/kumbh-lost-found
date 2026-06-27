@@ -253,6 +253,10 @@ export default function MissingRegistry() {
   const photoSearchRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>("missing");
   const [showFoundSomeone, setShowFoundSomeone] = useState(false);
+  const [foundSomeoneStep, setFoundSomeoneStep] = useState<"setup" | "chat">("setup");
+  const [foundSomeonePhoto, setFoundSomeonePhoto] = useState<string | null>(null);
+  const [foundSomeonePhotoPreview, setFoundSomeonePhotoPreview] = useState<string | null>(null);
+  const foundSomeonePhotoRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [foundPersons, setFoundPersons] = useState<FoundPerson[]>([]);
   const [missingReports, setMissingReports] = useState<MissingReport[]>([]);
@@ -264,6 +268,13 @@ export default function MissingRegistry() {
   const [photoSearching, setPhotoSearching] = useState(false);
   const [photoMatches, setPhotoMatches] = useState<(FoundPerson & { photoScore: number; photoMatchReason: string })[] | null>(null);
   const [photoGender, setPhotoGender] = useState<"male" | "female" | null>(null);
+
+  // Resolve Case panel state
+  const [showResolve, setShowResolve] = useState(false);
+  const [resolveRefId, setResolveRefId] = useState("");
+  const [resolvePin, setResolvePin] = useState("");
+  const [resolveResult, setResolveResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [resolveLoading, setResolveLoading] = useState(false);
 
   const handlePhotoSearch = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -402,13 +413,84 @@ export default function MissingRegistry() {
             {crossMatchCount > 0 && <span style={{ color: "#4ade80", marginLeft: 8 }}>✅ {crossMatchCount} {t("possibleMatchAt", lang).toLowerCase().replace(/ at$/, "")}</span>}
           </div>
         </div>
-        <button
-          onClick={() => navigate("/")}
-          style={{ fontSize: 12, color: "#94a3b8", background: "rgba(255,255,255,.1)", border: "none", borderRadius: 6, padding: "5px 10px" }}
-        >
-          ← {t("home", lang)}
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={() => { setShowResolve(v => !v); setResolveResult(null); }}
+            style={{ fontSize: 12, color: showResolve ? "#1e293b" : "#94a3b8", background: showResolve ? "#4ade80" : "rgba(255,255,255,.1)", border: "none", borderRadius: 6, padding: "5px 10px", fontWeight: showResolve ? 700 : 400 }}
+          >
+            🔓 Resolve
+          </button>
+          <button
+            onClick={() => navigate("/")}
+            style={{ fontSize: 12, color: "#94a3b8", background: "rgba(255,255,255,.1)", border: "none", borderRadius: 6, padding: "5px 10px" }}
+          >
+            ← {t("home", lang)}
+          </button>
+        </div>
       </div>
+
+      {/* ── Resolve Case panel ─────────────────────────────────────────── */}
+      {showResolve && (
+        <div style={{ background: "#1e293b", borderBottom: "2px solid #4ade80", padding: "14px 16px" }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#4ade80", marginBottom: 10 }}>
+            🔓 Resolve Case — Verify Handover PIN
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input
+              value={resolveRefId}
+              onChange={e => { setResolveRefId(e.target.value.toUpperCase()); setResolveResult(null); }}
+              placeholder="Reference No. — e.g. LP-1234567890-ABCD"
+              style={{ padding: "9px 12px", borderRadius: 8, border: "1.5px solid #334155", background: "#0f172a", color: "white", fontSize: 13, fontFamily: "monospace" }}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={resolvePin}
+                onChange={e => { setResolvePin(e.target.value.replace(/\D/g, "").slice(0, 4)); setResolveResult(null); }}
+                placeholder="4-digit PIN"
+                maxLength={4}
+                style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1.5px solid #334155", background: "#0f172a", color: "white", fontSize: 22, fontWeight: 900, fontFamily: "monospace", textAlign: "center", letterSpacing: 10 }}
+              />
+              <button
+                disabled={resolveRefId.length < 6 || resolvePin.length !== 4 || resolveLoading}
+                onClick={async () => {
+                  setResolveLoading(true);
+                  setResolveResult(null);
+                  await new Promise(r => setTimeout(r, 400)); // brief spinner feel
+                  const res = registry.verifyHandover(resolveRefId.trim(), "", resolvePin.trim());
+                  if (res.ok) {
+                    registry.logHandover(resolveRefId.trim(), "", "help-desk", "operator");
+                  }
+                  setResolveResult({ ok: res.ok, message: res.message });
+                  setResolveLoading(false);
+                }}
+                style={{
+                  padding: "9px 18px", borderRadius: 8, border: "none",
+                  background: resolvePin.length === 4 && resolveRefId.length >= 6 ? "#22c55e" : "#374151",
+                  color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", flexShrink: 0,
+                }}
+              >
+                {resolveLoading ? "…" : "Verify"}
+              </button>
+            </div>
+
+            {resolveResult && (
+              <div style={{
+                padding: "12px 14px", borderRadius: 8,
+                background: resolveResult.ok ? "#052e16" : "#450a0a",
+                border: `2px solid ${resolveResult.ok ? "#22c55e" : "#dc2626"}`,
+                fontSize: 13, color: resolveResult.ok ? "#4ade80" : "#f87171", lineHeight: 1.5,
+              }}>
+                {resolveResult.message}
+                {resolveResult.ok && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: "#86efac" }}>
+                    ✅ Case marked as resolved. Record will be purged after 36h per DPDP Act.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Map — always visible, shows route when "Go there" is tapped */}
       <div style={{ position: "relative" }}>
@@ -606,25 +688,102 @@ export default function MissingRegistry() {
                 <div style={{ fontSize: 12, color: "#57534e", marginTop: 2 }}>{t("foundSomeoneSubtitle", lang)}</div>
               </div>
               <button
-                onClick={() => setShowFoundSomeone(false)}
+                onClick={() => {
+                  setShowFoundSomeone(false);
+                  setFoundSomeoneStep("setup");
+                  setFoundSomeonePhoto(null);
+                  setFoundSomeonePhotoPreview(null);
+                }}
                 style={{ fontSize: 22, background: "none", border: "none", color: "#57534e", lineHeight: 1, padding: 4 }}
               >
                 ✕
               </button>
             </div>
 
-            {/* Chat agent */}
+            {/* Step 1 — optional photo + start button */}
+            {foundSomeoneStep === "setup" && (
+              <div style={{ padding: "20px 20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+                <p style={{ fontSize: 13, color: "#57534e", margin: 0 }}>
+                  Add a photo of the person (optional) — this helps AI match them to missing reports faster.
+                </p>
+
+                <input
+                  ref={foundSomeonePhotoRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{ display: "none" }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setFoundSomeonePhotoPreview(URL.createObjectURL(file));
+                    const b64 = await compressImage(file);
+                    setFoundSomeonePhoto(b64);
+                  }}
+                />
+
+                {foundSomeonePhotoPreview ? (
+                  <div style={{ position: "relative", alignSelf: "center" }}>
+                    <img
+                      src={foundSomeonePhotoPreview}
+                      alt="Found person"
+                      style={{ width: 140, height: 140, objectFit: "cover", borderRadius: 12, border: "2px solid #16a34a" }}
+                    />
+                    <button
+                      onClick={() => { setFoundSomeonePhoto(null); setFoundSomeonePhotoPreview(null); if (foundSomeonePhotoRef.current) foundSomeonePhotoRef.current.value = ""; }}
+                      style={{ position: "absolute", top: -8, right: -8, width: 24, height: 24, borderRadius: "50%", background: "#dc2626", color: "white", border: "none", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => foundSomeonePhotoRef.current?.click()}
+                    style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                      padding: "20px", borderRadius: 12, border: "2px dashed #d1d5db",
+                      background: "#f9fafb", cursor: "pointer", width: "100%",
+                    }}
+                  >
+                    <span style={{ fontSize: 36 }}>📷</span>
+                    <span style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>Take or upload photo</span>
+                    <span style={{ fontSize: 11, color: "#9ca3af" }}>Optional — helps with AI matching</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setFoundSomeoneStep("chat")}
+                  style={{
+                    padding: "14px", borderRadius: 10, border: "none",
+                    background: "#15803d", color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer",
+                  }}
+                >
+                  {foundSomeonePhoto ? "✅ Start — describe the person" : "🎤 Start describing →"}
+                </button>
+              </div>
+            )}
+
+            {/* Step 2 — Chat agent with voice */}
+            {foundSomeoneStep === "chat" && (
             <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
               <ChatAgent
                 langCode={lang}
                 initialPrompt="I am a bystander at Kumbh Mela. I have found an unaccompanied person who seems to be lost or separated from their family. Please help me register them so their family can find them. I will describe them to you."
+                photoBase64={foundSomeonePhoto ?? undefined}
                 onResult={() => {
-                  setTimeout(() => setShowFoundSomeone(false), 3000);
+                  setTimeout(() => {
+                    setShowFoundSomeone(false);
+                    setFoundSomeoneStep("setup");
+                    setFoundSomeonePhoto(null);
+                    setFoundSomeonePhotoPreview(null);
+                  }, 3000);
                 }}
                 placeholder={t("foundSomeonePlaceholder", lang)}
-                showVoice={false}
+                showVoice={true}
               />
             </div>
+            )}
+
           </div>
         </div>
       )}

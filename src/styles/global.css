@@ -357,6 +357,12 @@ a { color: inherit; text-decoration: none; }
   animation: spin .7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes progress-slide {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(150%); }
+  100% { transform: translateX(150%); }
+}
 
 /* ── Reunion result box ─────────────────────────────────────────────────── */
 .result-box {

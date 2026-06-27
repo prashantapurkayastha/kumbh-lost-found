@@ -17,6 +17,16 @@ export default function VoiceInput({ langCode, onTranscript, disabled }: Props) 
   // Cleanup on unmount
   useEffect(() => () => { sessionRef.current?.stop(); }, []);
 
+  // If recognition ends without a final result (low confidence or abrupt stop),
+  // use whatever interim text was captured rather than dropping it silently.
+  useEffect(() => {
+    if (state === "idle" && interim) {
+      onTranscript(interim);
+      setInterim("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
   function handlePress() {
     if (disabled) return;
 

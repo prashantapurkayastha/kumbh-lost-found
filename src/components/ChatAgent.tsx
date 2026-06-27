@@ -101,6 +101,7 @@ export default function ChatAgent({
   const [activeTools, setActiveTools] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [contentWarning, setContentWarning] = useState<string | null>(null);
+  const [showVoicePanel, setShowVoicePanel] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const didInitRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -143,10 +144,6 @@ export default function ChatAgent({
       const result = await runAgent(allTools, newApiMsgs, (toolName) => {
         setActiveTools((prev) => [...prev, toolName]);
         onToolCall?.(toolName);
-        setDisplayMsgs((prev) => [
-          ...prev,
-          { role: "system", text: `🔧 Calling: ${toolName.replace(/_/g, " ")}` },
-        ]);
       });
 
       setDisplayMsgs((prev) => [...prev, { role: "assistant", text: result.finalText }]);
@@ -177,16 +174,16 @@ export default function ChatAgent({
     const filtered = filterText(t);
     setContentWarning(filtered.reason ?? null);
     setInput("");
+    setShowVoicePanel(true);
     void sendMessage(filtered.cleaned);
   }
 
   function handleVoiceTranscript(text: string) {
-    // Profanity filter on voice transcript
     const filtered = filterText(text);
     if (filtered.blocked) setContentWarning(filtered.reason ?? null);
     setInput(filtered.cleaned);
-    // Auto-send voice input
-    void sendMessage(filtered.cleaned);
+    setShowVoicePanel(false);
+    setTimeout(() => textareaRef.current?.focus(), 50);
   }
 
   // Auto-resize textarea
@@ -214,28 +211,49 @@ export default function ChatAgent({
           </div>
         ))}
 
-        {loading && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {activeTools.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "0 4px" }}>
-                {activeTools.map((t, i) => (
-                  <span key={i} className="tool-pill">
-                    <span className="spinner" style={{ width: 10, height: 10, borderWidth: 1.5 }} />
-                    {t.replace(/_/g, " ")}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="chat-msg assistant" style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <span className="spinner" style={{ borderTopColor: "#f97316", borderColor: "#e7e5e4" }} />
-              <span style={{ color: "#78716c", fontSize: 13 }}>
-                {activeTools.length > 0
-                  ? `Running ${activeTools[activeTools.length - 1].replace(/_/g, " ")}…`
-                  : "Thinking…"}
-              </span>
+        {loading && (() => {
+          const TOOL_LABELS: Record<string, { icon: string; label: string; sub: string }> = {
+            search_found_persons:   { icon: "🔍", label: "Searching all help centers", sub: "Scanning registry for matching records…" },
+            search_missing_persons: { icon: "📋", label: "Checking missing reports",   sub: "Looking through active reports…" },
+            register_missing_person:{ icon: "📝", label: "Registering your case",      sub: "Alerting all nearby help centers…" },
+            register_found_person:  { icon: "🏥", label: "Logging found person",        sub: "Adding to the shared registry…" },
+            get_reunion_point:      { icon: "📍", label: "Finding reunion point",       sub: "Locating nearest safe meetup spot…" },
+            get_help_centers:       { icon: "🏥", label: "Fetching help centers",       sub: "Loading center details and capacity…" },
+            get_nearest_center:     { icon: "📡", label: "Finding nearest center",      sub: "Calculating walking distance…" },
+            verify_handover:        { icon: "🔐", label: "Verifying handover PIN",      sub: "Checking 4-digit code against report…" },
+          };
+          const currentTool = activeTools.length > 0 ? activeTools[activeTools.length - 1] : null;
+          const info = currentTool ? TOOL_LABELS[currentTool] : null;
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {info ? (
+                <div style={{
+                  background: "#fff8f4", border: "1.5px solid #fed7aa",
+                  borderRadius: 12, padding: "12px 14px",
+                  display: "flex", alignItems: "center", gap: 12,
+                }}>
+                  <span style={{ fontSize: 24, flexShrink: 0 }}>{info.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>{info.label}</div>
+                    <div style={{ fontSize: 11, color: "#78716c", marginTop: 2 }}>{info.sub}</div>
+                    <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: "#fed7aa", overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", background: "#f97316", borderRadius: 2,
+                        animation: "progress-slide 1.4s ease-in-out infinite",
+                        width: "40%",
+                      }} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="chat-msg assistant" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span className="spinner" style={{ borderTopColor: "#f97316", borderColor: "#e7e5e4" }} />
+                  <span style={{ color: "#78716c", fontSize: 13 }}>Thinking…</span>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {error && (
           <div className="chat-msg system" style={{ background: "#fee2e2", color: "#dc2626" }}>
@@ -252,10 +270,48 @@ export default function ChatAgent({
         <div ref={bottomRef} />
       </div>
 
-      {/* Voice input (above the text input, when enabled) */}
+      {/* Voice input — replaced by send/re-record after transcript is captured */}
       {showVoice && !loading && (
-        <div style={{ padding: "12px 16px 0", borderTop: "1px solid #f5f5f4" }}>
-          <VoiceInput langCode={langCode} onTranscript={handleVoiceTranscript} disabled={loading} />
+        <div style={{ borderTop: "1px solid #f5f5f4" }}>
+          {showVoicePanel ? (
+            <div style={{ padding: "12px 16px 0" }}>
+              <VoiceInput langCode={langCode} onTranscript={handleVoiceTranscript} disabled={loading} />
+            </div>
+          ) : (
+            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontSize: 13, color: "#1c1917", background: "#fff8f4", border: "1.5px solid #f97316", borderRadius: 10, padding: "10px 12px", lineHeight: 1.5 }}>
+                🎤 {input}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => {
+                    const t = input.trim();
+                    if (!t) return;
+                    const filtered = filterText(t);
+                    setContentWarning(filtered.reason ?? null);
+                    setInput("");
+                    setShowVoicePanel(true);
+                    void sendMessage(filtered.cleaned);
+                  }}
+                  style={{
+                    flex: 1, padding: "12px", borderRadius: 10, border: "none",
+                    background: "#f97316", color: "white", fontWeight: 700, fontSize: 15, cursor: "pointer",
+                  }}
+                >
+                  ✅ Send
+                </button>
+                <button
+                  onClick={() => { setShowVoicePanel(true); setInput(""); }}
+                  style={{
+                    padding: "12px 16px", borderRadius: 10, border: "1px solid #e7e5e4",
+                    background: "white", color: "#57534e", fontSize: 13, cursor: "pointer",
+                  }}
+                >
+                  🔄 Re-record
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

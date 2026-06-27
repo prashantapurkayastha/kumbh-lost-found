@@ -59,6 +59,7 @@ export interface FoundPerson {
   photoMatchConfidence: number; // 0–1, simulated
   status: "waiting" | "reunited" | "transferred";
   is_potential_duplicate: boolean;
+  expiresAt?: string; // ISO timestamp — record auto-expires after 72 hours
 }
 
 export interface MissingPersonInfo {
@@ -85,6 +86,7 @@ export interface MissingReport {
   duplicate_of?: string;
   /** 4-digit PIN shown to family; must be quoted in-person at desk before handover */
   verificationCode: string;
+  expiresAt?: string; // ISO timestamp — record auto-expires after 72 hours
 }
 
 export interface HandoverLog {

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView, { type MapMarker } from "../components/MapView";
 import ChatAgent from "../components/ChatAgent";
+import VolunteerQuickForm from "../components/VolunteerQuickForm";
 import NearbyDesks from "../components/NearbyDesks";
 import { getUserLocation, getNearestCenters, type UserLocation, type NearbyCenter } from "../services/location";
 import { sendSMS, buildFoundPersonRegisteredSMS, buildMatchFoundSMS } from "../services/sms";
@@ -361,6 +362,7 @@ export default function VolunteerPanel() {
               <MapView
                 userLocation={userLocation}
                 markers={markers}
+                showSatellite={false}
                 height="100%"
                 zoom={13}
               />
@@ -419,20 +421,10 @@ export default function VolunteerPanel() {
             )}
           </div>
 
-          <ChatAgent
-            langCode="en"
-            initialPrompt={
-              helpMode === "help-family"
-                ? `I am a volunteer at ${registry.getCenterById(centerId)?.name ?? centerId}. A family member is here to report someone missing. Please help me take their report.`
-                : `I am a volunteer at ${registry.getCenterById(centerId)?.name ?? centerId}. A person is here who appears to be lost and separated from their family. Please help me register them and find their family.`
-            }
-            onResult={handleAgentResult}
-            placeholder={
-              helpMode === "help-family"
-                ? "Enter the missing person's details on behalf of the family…"
-                : "Describe the lost person — what they're wearing, language, where found…"
-            }
-            showVoice={false}
+          <VolunteerQuickForm
+            mode={helpMode === "help-family" ? "help-family" : "help-person"}
+            centerId={centerId}
+            onSubmitted={(r) => setRefNumber(r.refId)}
           />
         </div>
       )}
@@ -472,12 +464,10 @@ export default function VolunteerPanel() {
             )}
           </div>
 
-          <ChatAgent
-            langCode="en"
-            initialPrompt={`I am a volunteer at ${registry.getCenterById(centerId)?.name ?? centerId}. An unaccompanied person has arrived at my center who appears to be lost. I need to register them and find their family. Please guide me through the process.`}
-            onResult={handleAgentResult}
-            placeholder="Describe the person: age, clothing, language, condition, where found…"
-            showVoice={false}
+          <VolunteerQuickForm
+            mode="found-person"
+            centerId={centerId}
+            onSubmitted={(r) => setRefNumber(r.refId)}
           />
         </div>
       )}

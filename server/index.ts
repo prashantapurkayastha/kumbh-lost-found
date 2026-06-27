@@ -3,6 +3,8 @@ import cors from "cors";
 import Anthropic from "@anthropic-ai/sdk";
 import path from "path";
 import dotenv from "dotenv";
+import { store } from "./store";
+import type { RegisterFoundPersonInput, RegisterMissingPersonInput } from "./store";
 
 dotenv.config();
 
@@ -95,6 +97,98 @@ app.post("/api/sms", async (req, res) => {
     // Fail gracefully — SMS failure should not break the app
     return res.json({ success: false, mock: true, error: msg });
   }
+});
+
+// ── Registry REST API ─────────────────────────────────────────────────────────
+
+// GET /api/registry/state — full state snapshot for initial client load
+app.get("/api/registry/state", (_req, res) => {
+  res.json({
+    foundPersons: store.getAllFoundPersons(),
+    missingReports: store.getAllMissingReports(),
+    helpCenters: store.getHelpCenters(),
+    policeStations: store.getPoliceStations(),
+    reunionPoints: store.getReunionPoints(),
+    stats: store.getStats(),
+  });
+});
+
+// POST /api/registry/found-persons — register a found person
+app.post("/api/registry/found-persons", (req, res) => {
+  const input = req.body as RegisterFoundPersonInput;
+  if (!input.ageRange || !input.gender || !input.clothingDescription || !input.foundZone || !input.centerId) {
+    return res.status(400).json({ error: "Missing required fields: ageRange, gender, clothingDescription, foundZone, centerId" });
+  }
+  const fp = store.addFoundPerson(input);
+  return res.status(201).json(fp);
+});
+
+// POST /api/registry/missing-reports — register a missing person report
+app.post("/api/registry/missing-reports", (req, res) => {
+  const input = req.body as RegisterMissingPersonInput & { reportingCenter?: string };
+  if (!input.ageRange || !input.gender || !input.clothingDescription || !input.lastSeenZone) {
+    return res.status(400).json({ error: "Missing required fields: ageRange, gender, clothingDescription, lastSeenZone" });
+  }
+  const report = store.addMissingReport(input);
+  return res.status(201).json(report);
+});
+
+// POST /api/registry/handover — verify identity and complete handover
+app.post("/api/registry/handover", (req, res) => {
+  const {
+    reportId,
+    foundPersonId,
+    code,
+    centerId,
+    operatorId,
+    minorEscort = false,
+    reunionPointId = "",
+    witnessVolunteerId,
+  } = req.body as {
+    reportId: string;
+    foundPersonId: string;
+    code: string;
+    centerId: string;
+    operatorId: string;
+    minorEscort?: boolean;
+    reunionPointId?: string;
+    witnessVolunteerId?: string;
+  };
+
+  if (!reportId || !foundPersonId || !code || !centerId || !operatorId) {
+    return res.status(400).json({ error: "Missing required fields: reportId, foundPersonId, code, centerId, operatorId" });
+  }
+
+  const result = store.verifyAndHandover(
+    reportId,
+    foundPersonId,
+    code,
+    centerId,
+    operatorId,
+    minorEscort,
+    reunionPointId,
+    witnessVolunteerId,
+  );
+
+  if (!result.ok) {
+    return res.status(400).json({ error: result.message });
+  }
+
+  return res.json(result.log);
+});
+
+// GET /api/registry/reports/:id — look up a missing report by ID
+app.get("/api/registry/reports/:id", (req, res) => {
+  const report = store.getMissingReportById(req.params.id);
+  if (!report) {
+    return res.status(404).json({ error: `No report found with ID ${req.params.id}` });
+  }
+  return res.json(report);
+});
+
+// GET /api/registry/handover-logs — audit log of all handovers
+app.get("/api/registry/handover-logs", (_req, res) => {
+  res.json(store.getHandoverLogs());
 });
 
 // ── Serve built frontend in production ───────────────────────────────────────

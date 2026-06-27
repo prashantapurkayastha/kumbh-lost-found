@@ -129,6 +129,7 @@ export default function PublicApp() {
   const [registerOutput, setRegisterOutput] = useState<Record<string, unknown> | null>(null);
   const [reunionPoint, setReunionPoint] = useState<ReunionPoint | null>(null);
   const [refNumber, setRefNumber] = useState<string | null>(null);
+  const [dpdpConsent, setDpdpConsent] = useState(false);
   const [sosLoading, setSosLoading] = useState(false);
   const [sosSent, setSosSent] = useState(false);
   const [markers, setMarkers] = useState<MapMarker[]>([]);
@@ -393,6 +394,7 @@ export default function PublicApp() {
             chokepoints={choke}
             showCctv={showCctv}
             showChokepoints={showChokepoints}
+            showSatellite={false}
             height={260}
             zoom={13}
           />
@@ -867,6 +869,20 @@ export default function PublicApp() {
               )}
             </div>
 
+            <div className="form-row" style={{ marginTop: 8 }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "#57534e", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={dpdpConsent}
+                  onChange={e => setDpdpConsent(e.target.checked)}
+                  style={{ marginTop: 2, flexShrink: 0 }}
+                />
+                <span>
+                  I consent to sharing this information with Kumbh Mela authorities and help centers to locate the missing person. Data is retained for 72 hours per DPDP Act 2023 guidelines.
+                </span>
+              </label>
+            </div>
+
             <button
               onClick={() => {
                 const newErrors = {
@@ -875,12 +891,14 @@ export default function PublicApp() {
                 };
                 setErrors(newErrors);
                 if (Object.values(newErrors).some(e => e)) return;
+                if (!dpdpConsent) return;
                 // First do a quick client-side registry check before opening chat
                 const results = registry.searchFound({ description: missingDescription });
                 setPreCheckMatches(results.map(r => r as unknown as FoundPerson));
                 setScreen("match-check");
               }}
               className="btn btn-primary btn-full mt-16"
+              disabled={!dpdpConsent}
             >
               {t("startReport", lang)}
             </button>
@@ -1033,6 +1051,7 @@ export default function PublicApp() {
             userLocation={userLocation}
             markers={markers}
             reunionPoint={reunionPoint}
+            showSatellite={false}
             height={220}
           />
 

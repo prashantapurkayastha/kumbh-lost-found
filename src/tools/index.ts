@@ -1,5 +1,6 @@
 import type { AgentTool } from "../types";
 import { registry } from "../core/backends/registry";
+import { addFoundPersonSync, addMissingReportSync } from "../core/backends/registrySync";
 import { notifyBackend } from "../core/backends/notify";
 import { getActiveVolunteers } from "../services/volunteers";
 import { haversineKm, zoneToLatLng } from "../core/backends/geo";
@@ -144,7 +145,7 @@ const registerMissingPerson: AgentTool = {
     required: ["ageRange", "gender", "clothingDescription", "lastSeenZone"],
   },
   run: async (input) => {
-    const report = registry.addMissingReport({
+    const report = await addMissingReportSync({
       name: input.name as string | undefined,
       ageRange: input.ageRange as string,
       gender: input.gender as "male" | "female" | "unknown",
@@ -230,7 +231,7 @@ const registerFoundPerson: AgentTool = {
     required: ["ageRange", "gender", "clothingDescription", "foundZone", "centerId"],
   },
   run: async (input) => {
-    const fp = registry.addFoundPerson({
+    const fp = await addFoundPersonSync({
       ageRange: input.ageRange as string,
       gender: input.gender as "male" | "female" | "unknown",
       clothingDescription: input.clothingDescription as string,

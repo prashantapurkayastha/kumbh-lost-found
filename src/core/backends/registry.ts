@@ -56,10 +56,14 @@ export const registry = {
 
   // ── Getters ──────────────────────────────────────────────────────────────────
   getAllFoundPersons(): FoundPerson[] {
-    return foundPersons.filter((p) => p.status === "waiting");
+    return foundPersons
+      .filter((p) => p.status === "waiting")
+      .filter(p => !p.expiresAt || new Date(p.expiresAt) > new Date());
   },
   getAllMissingReports(): MissingReport[] {
-    return missingReports.filter((r) => r.status === "active");
+    return missingReports
+      .filter((r) => r.status === "active")
+      .filter(p => !p.expiresAt || new Date(p.expiresAt) > new Date());
   },
   getHelpCenters(): HelpCenter[] {
     return helpCenters;
@@ -214,6 +218,7 @@ export const registry = {
       contactNumber: input.contactNumber,
       reportingCenter: input.reportingCenter ?? "Unknown Center",
       verificationCode: gen4PIN(),
+      expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
       missingPerson: {
         name: input.name,
         ageRange: input.ageRange,
@@ -258,6 +263,7 @@ export const registry = {
       photoMatchConfidence: input.photoProvided ? 0.65 : 0,
       status: "waiting",
       is_potential_duplicate: false,
+      expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
     };
 
     foundPersons.push(fp);

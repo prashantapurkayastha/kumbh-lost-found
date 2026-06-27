@@ -3,11 +3,15 @@ import { createRoot } from "react-dom/client";
 import { seedRegistry } from "./data/seed";
 import { startQueueSync, type QueuedOperation } from "./services/offlineQueue";
 import { seedDemoVolunteers } from "./services/volunteers";
+import { startRegistrySync } from "./core/backends/registrySync";
 import App from "./App";
 
-// ── Seed the in-memory registry ───────────────────────────────────────────────
+// ── Seed local registry (fallback while server is unreachable) ────────────────
 seedRegistry();
 seedDemoVolunteers();
+
+// ── Sync with server — server is canonical; overwrites seed on first response ─
+startRegistrySync(3000);
 
 // ── Start offline queue sync ──────────────────────────────────────────────────
 startQueueSync(async (op: QueuedOperation) => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { UserLocation } from "../services/location";
@@ -90,11 +90,12 @@ interface Props {
   showHotspots?: boolean;
   height?: string | number;
   zoom?: number;
+  showSatellite?: boolean;
 }
 
 const RAMKUND = { lat: 20.0039, lng: 73.7894 };
 
-export default function MapView({ userLocation, markers = [], reunionPoint, routeTo, cctvPoints = [], chokepoints = [], showCctv = false, showChokepoints = false, hotspots = [], suggestedDesks = [], showHotspots = false, height = 320, zoom = 14 }: Props) {
+export default function MapView({ userLocation, markers = [], reunionPoint, routeTo, cctvPoints = [], chokepoints = [], showCctv = false, showChokepoints = false, hotspots = [], suggestedDesks = [], showHotspots = false, height = 320, zoom = 14, showSatellite = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -103,6 +104,9 @@ export default function MapView({ userLocation, markers = [], reunionPoint, rout
   const cctvLayerRef = useRef<L.LayerGroup | null>(null);
   const chokeLayerRef = useRef<L.LayerGroup | null>(null);
   const hotspotLayerRef = useRef<L.LayerGroup | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+
+  const [satellite, setSatellite] = useState(showSatellite ?? false);
 
   // ── Init map once ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -118,13 +122,6 @@ export default function MapView({ userLocation, markers = [], reunionPoint, rout
       zoomControl: true,
       attributionControl: true,
     });
-
-    // CartoDB light — clean, free, no API key
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: "abcd",
-      maxZoom: 20,
-    }).addTo(map);
 
     mapRef.current = map;
     layerRef.current = L.layerGroup().addTo(map);
@@ -154,9 +151,95 @@ export default function MapView({ userLocation, markers = [], reunionPoint, rout
     return () => {
       map.remove();
       mapRef.current = null;
+      tileLayerRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Tile layer swap on satellite toggle ────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Remove old tile layer
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+      tileLayerRef.current = null;
+    }
+
+    let newTile: L.TileLayer;
+    if (satellite) {
+      newTile = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { attribution: "Tiles © Esri", maxZoom: 20 }
+      );
+    } else {
+      newTile = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        {
+          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: "abcd",
+          maxZoom: 20,
+        }
+      );
+    }
+
+    newTile.addTo(map);
+    // Ensure tile layer is below other layers by bringing it to back
+    newTile.bringToBack();
+    tileLayerRef.current = newTile;
+  }, [satellite]);
+
+  // ── Toggle control (bottomright) ───────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // We inject the button via a Leaflet control
+    const ToggleControl = L.Control.extend({
+      options: { position: "bottomright" as L.ControlPosition },
+      onAdd() {
+        const btn = L.DomUtil.create("button");
+        btn.id = "map-satellite-toggle";
+        btn.style.cssText = [
+          "background:white",
+          "border:2px solid rgba(0,0,0,.2)",
+          "border-radius:6px",
+          "padding:6px 10px",
+          "font-size:13px",
+          "font-family:sans-serif",
+          "cursor:pointer",
+          "box-shadow:0 2px 6px rgba(0,0,0,.2)",
+          "white-space:nowrap",
+          "margin-bottom:10px",
+          "margin-right:10px",
+        ].join(";");
+        btn.innerHTML = satellite ? "🗺 Street" : "🛰 Satellite";
+        L.DomEvent.on(btn, "click", L.DomEvent.stopPropagation);
+        L.DomEvent.on(btn, "click", () => {
+          setSatellite((s) => {
+            btn.innerHTML = s ? "🛰 Satellite" : "🗺 Street";
+            return !s;
+          });
+        });
+        return btn;
+      },
+    });
+
+    const ctrl = new ToggleControl();
+    ctrl.addTo(map);
+
+    return () => {
+      ctrl.remove();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep button label in sync with satellite state
+  useEffect(() => {
+    const btn = document.getElementById("map-satellite-toggle");
+    if (btn) btn.innerHTML = satellite ? "🗺 Street" : "🛰 Satellite";
+  }, [satellite]);
 
   // ── OSRM route ────────────────────────────────────────────────────────────
   useEffect(() => {

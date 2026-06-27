@@ -299,7 +299,7 @@ export default function HelpDeskPanel() {
               })}
             </div>
             <div className="two-panel__right">
-              <MapView userLocation={userLocation} markers={markers} height="100%" zoom={13} />
+              <MapView userLocation={userLocation} markers={markers} showSatellite={false} height="100%" zoom={13} />
             </div>
           </div>
         </div>
@@ -463,6 +463,7 @@ export default function HelpDeskPanel() {
               hotspots={hotspots}
               suggestedDesks={suggestedDesks}
               showHotspots={true}
+              showSatellite={false}
               height={340}
               zoom={13}
             />
@@ -516,131 +517,348 @@ export default function HelpDeskPanel() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Verify Handover — 4-digit PIN check before releasing a found person
+// Verify Handover — full 6-step handover chain
 // ─────────────────────────────────────────────────────────────────────────────
+
+type HandoverStep = 1 | 2 | 3 | 4 | 5 | 6;
+
+function isMinor(ageRange: string): boolean {
+  const minorKeywords = ["child", "infant", "toddler", "3-", "4-", "5-", "6-", "7-", "8-", "9-", "10", "11", "12"];
+  const lower = ageRange.toLowerCase();
+  return minorKeywords.some(k => lower.includes(k));
+}
+
 function VerifyHandover({ deskId }: { deskId: string }) {
-  const [reportId, setReportId] = useState("");
-  const [fpId, setFpId] = useState("");
+  const [step, setStep] = useState<HandoverStep>(1);
+
+  // Step 1 — Lookup
+  const [refInput, setRefInput] = useState("");
+  const [lookupError, setLookupError] = useState("");
+  const [report, setReport] = useState<import("../types").MissingReport | null>(null);
+
+  // Step 2 — Found person + center
+  const [fpIdInput, setFpIdInput] = useState("");
+  const [fpLookupError, setFpLookupError] = useState("");
+  const [foundPerson, setFoundPerson] = useState<import("../types").FoundPerson | null>(null);
+  const [holdingCenter, setHoldingCenter] = useState<import("../types").HelpCenter | null>(null);
+
+  // Step 3 — PIN
   const [pin, setPin] = useState("");
-  const [operatorName, setOperatorName] = useState("");
-  const [result, setResult] = useState<{ ok: boolean; message: string; reportedBy?: string } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [handoverDone, setHandoverDone] = useState(false);
+  const [pinError, setPinError] = useState("");
+
+  // Step 4 — Minor check
+  const [policeEscortArranged, setPoliceEscortArranged] = useState(false);
+
+  // Step 5 — Reunion point (loaded after step 3/4)
+  const [reunionPoint, setReunionPoint] = useState<import("../types").ReunionPoint | null>(null);
+
+  // Step 6 — Completion
+  const [handoverLog, setHandoverLog] = useState<import("../types").HandoverLog | null>(null);
 
   const recentLogs = registry.getHandoverLogs().slice(-5).reverse();
 
-  function handleVerify(e: React.FormEvent) {
+  function handleLookup(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    // Simulate network delay for effect
-    setTimeout(() => {
-      const res = registry.verifyHandover(reportId.trim().toUpperCase(), fpId.trim().toUpperCase(), pin.trim());
-      setResult({ ok: res.ok, message: res.message, reportedBy: res.report?.reportedBy });
-      setLoading(false);
-    }, 400);
+    const id = refInput.trim().toUpperCase();
+    const found = registry.getMissingReportById(id);
+    if (!found) {
+      setLookupError(`No report found with ID ${id}`);
+      return;
+    }
+    if (found.status !== "active") {
+      setLookupError(`Report ${id} is already ${found.status}`);
+      return;
+    }
+    setReport(found);
+    setLookupError("");
+    setStep(2);
   }
 
-  function handleLogHandover() {
-    if (!reportId || !fpId || !operatorName) return;
-    registry.logHandover(reportId.trim().toUpperCase(), fpId.trim().toUpperCase(), deskId, operatorName);
-    setHandoverDone(true);
-    setResult(null);
-    setReportId(""); setFpId(""); setPin("");
+  function handleFpLookup(e: React.FormEvent) {
+    e.preventDefault();
+    const id = fpIdInput.trim().toUpperCase();
+    const fp = registry.getFoundPersonById(id);
+    if (!fp) {
+      setFpLookupError(`No found person with ID ${id}`);
+      return;
+    }
+    const center = registry.getCenterById(fp.centerId) ?? null;
+    setFoundPerson(fp);
+    setHoldingCenter(center);
+    setFpLookupError("");
+    setStep(3);
+  }
+
+  function handlePinVerify(e: React.FormEvent) {
+    e.preventDefault();
+    if (!report) return;
+    if (report.verificationCode !== pin.trim()) {
+      setPinError("❌ PIN does not match — do not release. Re-confirm identity or call police (100).");
+      return;
+    }
+    setPinError("");
+    const minor = isMinor(report.missingPerson.ageRange);
+    if (minor) {
+      setStep(4);
+    } else {
+      const zone = foundPerson?.foundZone ?? report.missingPerson.lastSeenLocation;
+      const rp = registry.getReunionPointForZone(zone) ?? null;
+      setReunionPoint(rp);
+      setStep(5);
+    }
+  }
+
+  function proceedFromMinorCheck() {
+    const zone = foundPerson?.foundZone ?? report?.missingPerson.lastSeenLocation ?? "";
+    const rp = registry.getReunionPointForZone(zone) ?? null;
+    setReunionPoint(rp);
+    setStep(5);
+  }
+
+  function handleCompleteHandover() {
+    if (!report) return;
+    const fpId = foundPerson?.id ?? "";
+    const log = registry.logHandover(report.id, fpId, deskId, "DESK-OPERATOR");
+    setHandoverLog(log);
+    setStep(6);
+  }
+
+  function resetFlow() {
+    setStep(1);
+    setRefInput(""); setLookupError(""); setReport(null);
+    setFpIdInput(""); setFpLookupError(""); setFoundPerson(null); setHoldingCenter(null);
+    setPin(""); setPinError("");
+    setPoliceEscortArranged(false);
+    setReunionPoint(null);
+    setHandoverLog(null);
   }
 
   return (
     <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-title">🔐 Handover Verification</div>
-        <p style={{ fontSize: 13, color: "#57534e", marginBottom: 16 }}>
-          Family must quote the <strong>4-digit PIN</strong> issued when the missing report was filed.
-          Do not release anyone without a matching PIN.
-        </p>
 
-        {handoverDone && (
-          <div style={{ background: "#f0fdf4", border: "1px solid #16a34a", borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13, color: "#15803d", fontWeight: 600 }}>
-            ✅ Handover logged. Report marked resolved. Person released.
-          </div>
-        )}
-
-        <form onSubmit={handleVerify} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div>
-            <label className="input-label">Missing Report ID (e.g. LP-25000)</label>
-            <input
-              className="input"
-              value={reportId}
-              onChange={e => { setReportId(e.target.value); setResult(null); setHandoverDone(false); }}
-              placeholder="LP-25000"
-              style={{ fontFamily: "monospace", fontWeight: 700 }}
-            />
-          </div>
-          <div>
-            <label className="input-label">Found Person ID (e.g. FP-100) — optional</label>
-            <input
-              className="input"
-              value={fpId}
-              onChange={e => { setFpId(e.target.value); setResult(null); }}
-              placeholder="FP-100"
-              style={{ fontFamily: "monospace" }}
-            />
-          </div>
-          <div>
-            <label className="input-label">4-Digit Verification PIN</label>
-            <input
-              className="input"
-              value={pin}
-              onChange={e => { setPin(e.target.value.replace(/\D/g, "").slice(0, 4)); setResult(null); }}
-              placeholder="••••"
-              maxLength={4}
-              inputMode="numeric"
-              style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 22, letterSpacing: 8, textAlign: "center" }}
-            />
-          </div>
-          <button type="submit" className="btn btn-primary" disabled={loading || pin.length < 4 || !reportId}>
-            {loading ? <><span className="spinner" /> Checking…</> : "🔐 Verify PIN"}
-          </button>
-        </form>
-
-        {result && (
-          <div style={{
-            marginTop: 16,
-            padding: 14,
-            borderRadius: 10,
-            background: result.ok ? "#f0fdf4" : "#fef2f2",
-            border: `2px solid ${result.ok ? "#16a34a" : "#dc2626"}`,
-            fontSize: 14,
-            color: result.ok ? "#15803d" : "#b91c1c",
-            fontWeight: 600,
-          }}>
-            {result.message}
-            {result.ok && result.reportedBy && (
-              <div style={{ fontSize: 12, color: "#57534e", fontWeight: 400, marginTop: 6 }}>
-                Report filed by: {result.reportedBy}
-              </div>
-            )}
-          </div>
-        )}
-
-        {result?.ok && !handoverDone && (
-          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-            <div>
-              <label className="input-label">Your name (operator)</label>
-              <input className="input" value={operatorName} onChange={e => setOperatorName(e.target.value)} placeholder="Desk operator name" />
-            </div>
-            <button
-              className="btn btn-primary"
-              style={{ background: "#16a34a", borderColor: "#16a34a" }}
-              onClick={handleLogHandover}
-              disabled={!operatorName}
-            >
-              ✅ Confirm Release & Log Handover
-            </button>
-          </div>
-        )}
+      {/* Step progress bar */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, alignItems: "center" }}>
+        {([1,2,3,4,5,6] as HandoverStep[]).map((s) => (
+          <div key={s} style={{
+            flex: 1, height: 4, borderRadius: 4,
+            background: step >= s ? "#1d4ed8" : "#e7e5e4",
+            transition: "background .3s",
+          }} />
+        ))}
       </div>
 
+      {/* STEP 1 — Lookup by reference number */}
+      {step === 1 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-title">Step 1 of 6 — Lookup Missing Report</div>
+          <p style={{ fontSize: 13, color: "#57534e", marginBottom: 12 }}>
+            Enter the family's reference number (LP-XXXXX) to look up the missing report.
+          </p>
+          <form onSubmit={handleLookup} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label className="input-label">Reference Number</label>
+              <input
+                className="input"
+                value={refInput}
+                onChange={e => { setRefInput(e.target.value); setLookupError(""); }}
+                placeholder="LP-25000"
+                style={{ fontFamily: "monospace", fontWeight: 700 }}
+              />
+            </div>
+            {lookupError && <p style={{ fontSize: 13, color: "#dc2626" }}>{lookupError}</p>}
+            <button type="submit" className="btn btn-primary" disabled={!refInput.trim()}>
+              🔍 Look Up Report
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* STEP 2 — Confirm holding center */}
+      {step === 2 && report && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-title">Step 2 of 6 — Confirm Holding Center</div>
+
+          <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{report.id}</div>
+            <div style={{ fontSize: 13, color: "#57534e", marginTop: 2 }}>
+              {report.missingPerson.name ?? "Unknown"} · {report.missingPerson.ageRange} · {report.missingPerson.gender}
+            </div>
+            <div style={{ fontSize: 12, color: "#57534e", marginTop: 2 }}>{report.missingPerson.clothing}</div>
+            <div style={{ fontSize: 12, color: "#78716c", marginTop: 2 }}>Last seen: {report.missingPerson.lastSeenLocation}</div>
+            <div style={{ fontSize: 12, color: "#78716c" }}>Reported by: {report.reportedBy}</div>
+          </div>
+
+          <p style={{ fontSize: 13, color: "#57534e", marginBottom: 8 }}>
+            Enter the Found Person ID (FP-XXXXX) to confirm who is being held and at which center.
+          </p>
+          <form onSubmit={handleFpLookup} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label className="input-label">Found Person ID (FP-XXXXX)</label>
+              <input
+                className="input"
+                value={fpIdInput}
+                onChange={e => { setFpIdInput(e.target.value); setFpLookupError(""); }}
+                placeholder="FP-100"
+                style={{ fontFamily: "monospace" }}
+              />
+            </div>
+            {fpLookupError && <p style={{ fontSize: 13, color: "#dc2626" }}>{fpLookupError}</p>}
+            <button type="submit" className="btn btn-primary" disabled={!fpIdInput.trim()}>
+              Confirm Found Person →
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* STEP 3 — PIN Verification */}
+      {step === 3 && report && foundPerson && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-title">Step 3 of 6 — PIN Verification</div>
+
+          {holdingCenter && (
+            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: "#1d4ed8" }}>
+                {foundPerson.id} is currently held at:
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, marginTop: 2 }}>{holdingCenter.name}</div>
+              <div style={{ marginTop: 6 }}>
+                <a
+                  href={`tel:${holdingCenter.contactNumber}`}
+                  style={{ fontSize: 13, color: "#1d4ed8", fontWeight: 700, textDecoration: "none" }}
+                >
+                  📞 Call {holdingCenter.name} — {holdingCenter.contactNumber}
+                </a>
+              </div>
+            </div>
+          )}
+
+          <p style={{ fontSize: 13, color: "#57534e", marginBottom: 12 }}>
+            Ask the family to quote their <strong>4-digit PIN</strong>. Do not release without a match.
+          </p>
+          <form onSubmit={handlePinVerify} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label className="input-label">4-Digit Verification PIN</label>
+              <input
+                className="input"
+                value={pin}
+                onChange={e => { setPin(e.target.value.replace(/\D/g, "").slice(0, 4)); setPinError(""); }}
+                placeholder="••••"
+                maxLength={4}
+                inputMode="numeric"
+                style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 22, letterSpacing: 8, textAlign: "center" }}
+              />
+            </div>
+            {pinError && (
+              <div style={{ background: "#fef2f2", border: "1px solid #dc2626", borderRadius: 8, padding: "10px 12px", fontSize: 13, color: "#b91c1c", fontWeight: 600 }}>
+                {pinError}
+              </div>
+            )}
+            <button type="submit" className="btn btn-primary" disabled={pin.length < 4}>
+              🔐 Verify PIN
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* STEP 4 — Minor check */}
+      {step === 4 && report && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-title">Step 4 of 6 — Minor Check</div>
+          <div style={{ background: "#fef2f2", border: "2px solid #dc2626", borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#b91c1c" }}>
+              ⚠️ MINOR — Police escort required before release
+            </div>
+            <div style={{ fontSize: 13, color: "#7f1d1d", marginTop: 6 }}>
+              Age range "{report.missingPerson.ageRange}" indicates this may be a minor.
+              A police escort must be arranged before release.
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <a href="tel:100" style={{ fontSize: 14, color: "#b91c1c", fontWeight: 700, textDecoration: "none" }}>
+                📞 Call Police (100)
+              </a>
+            </div>
+          </div>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={policeEscortArranged}
+              onChange={e => setPoliceEscortArranged(e.target.checked)}
+              style={{ marginTop: 2, flexShrink: 0, width: 18, height: 18 }}
+            />
+            <span style={{ fontWeight: 600 }}>Police escort arranged ✓</span>
+          </label>
+          <button
+            className="btn btn-primary"
+            style={{ marginTop: 16, width: "100%" }}
+            disabled={!policeEscortArranged}
+            onClick={proceedFromMinorCheck}
+          >
+            Proceed to Reunion Point →
+          </button>
+        </div>
+      )}
+
+      {/* STEP 5 — Reunion point */}
+      {step === 5 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-title">Step 5 of 6 — Reunion Point</div>
+          {reunionPoint ? (
+            <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>📍 {reunionPoint.name}</div>
+              <div style={{ fontSize: 13, color: "#57534e", marginTop: 4 }}>{reunionPoint.landmark}</div>
+              {reunionPoint.landmark_hi && (
+                <div style={{ fontSize: 13, color: "#57534e", marginTop: 2 }}>{reunionPoint.landmark_hi}</div>
+              )}
+              <div style={{ fontSize: 12, color: "#78716c", marginTop: 4 }}>Zone: {reunionPoint.zone}</div>
+              <div style={{ fontSize: 12, color: "#78716c" }}>Volunteer: {reunionPoint.volunteerAssigned}</div>
+              <a
+                href={`https://maps.google.com/?q=${reunionPoint.location.lat},${reunionPoint.location.lng}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: "inline-block", marginTop: 10, fontSize: 13, color: "#1d4ed8", fontWeight: 700, textDecoration: "none" }}
+              >
+                🗺 Get directions
+              </a>
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, color: "#57534e", marginBottom: 12 }}>
+              No specific reunion point found — use the nearest help center.
+            </div>
+          )}
+          <button
+            className="btn btn-primary"
+            style={{ background: "#16a34a", borderColor: "#16a34a", width: "100%" }}
+            onClick={handleCompleteHandover}
+          >
+            ✅ Complete Handover — Release to Family
+          </button>
+        </div>
+      )}
+
+      {/* STEP 6 — Done */}
+      {step === 6 && handoverLog && (
+        <div className="card" style={{ background: "#f0fdf4", borderColor: "#16a34a", borderWidth: 2, marginBottom: 16 }}>
+          <div style={{ textAlign: "center", padding: "16px 0" }}>
+            <div style={{ fontSize: 40 }}>🎉</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#15803d", marginTop: 8 }}>Reunited!</div>
+            <div style={{ fontFamily: "monospace", fontSize: 14, background: "#dcfce7", color: "#15803d", padding: "4px 14px", borderRadius: 8, marginTop: 8, display: "inline-block", fontWeight: 700 }}>
+              Ref: {handoverLog.reportId}
+            </div>
+            <div style={{ fontSize: 13, color: "#57534e", marginTop: 8 }}>
+              DESK-OPERATOR witness present
+            </div>
+            <div style={{ fontSize: 12, color: "#a8a29e", marginTop: 4 }}>
+              Logged: {new Date(handoverLog.verifiedAt).toLocaleTimeString()}
+            </div>
+          </div>
+          <button className="btn btn-ghost btn-full" style={{ marginTop: 8 }} onClick={resetFlow}>
+            ← Start new handover
+          </button>
+        </div>
+      )}
+
       {/* Recent handover log */}
-      {recentLogs.length > 0 && (
+      {recentLogs.length > 0 && step !== 6 && (
         <div>
           <div className="card-title">📋 Recent Handovers (this session)</div>
           {recentLogs.map((log) => (

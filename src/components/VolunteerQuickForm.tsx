@@ -2,6 +2,8 @@ import { useState, useRef } from "react";
 import { addFoundPersonSync, addMissingReportSync } from "../core/backends/registrySync";
 import type { RegisterFoundPersonInput, RegisterMissingPersonInput } from "../types";
 import { filterText } from "../utils/profanityFilter";
+import { useLanguage } from "../context/LanguageContext";
+import { getBCP47 } from "../services/speech";
 
 // ── Icon mode grids ──────────────────────────────────────────────────────────
 const AGE_ICONS: { value: string; icon: string; label: string }[] = [
@@ -42,6 +44,8 @@ interface VisionResult {
 }
 
 export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: VolunteerQuickFormProps) {
+  const { lang } = useLanguage();
+
   // Shared person fields
   const [ageRange, setAgeRange] = useState<AgeRange>("adult (36-60)");
   const [gender, setGender] = useState<Gender>("unknown");
@@ -64,6 +68,8 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
   // Voice input
   const [voiceTooltip, setVoiceTooltip] = useState("");
   const [missingVoiceTooltip, setMissingVoiceTooltip] = useState("");
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [missingVoiceListening, setMissingVoiceListening] = useState(false);
 
   // Help-family mode fields
   const [reporterName, setReporterName] = useState("");
@@ -188,10 +194,17 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
 
   // ── Voice input ───────────────────────────────────────────────────────────
   function handleVoiceInput() {
+    // Prevent double-start
+    if (voiceListening) return;
+
+    type SRResult = { transcript: string };
+    type SRResultList = { length: number; [k: number]: { [k: number]: SRResult } };
     type AnySR = {
-      lang: string; interimResults: boolean; maxAlternatives: number;
-      onresult: ((e: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => void) | null;
-      onerror: (() => void) | null; start: () => void;
+      lang: string; interimResults: boolean; continuous: boolean; maxAlternatives: number;
+      onresult: ((e: { results: SRResultList }) => void) | null;
+      onerror: ((e: { error: string }) => void) | null;
+      onend: (() => void) | null;
+      start: () => void;
     };
     type WW = Window & { SpeechRecognition?: new () => AnySR; webkitSpeechRecognition?: new () => AnySR };
     const w = window as WW;
@@ -202,19 +215,30 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
       return;
     }
     const recognition = new Ctor();
-    recognition.lang = "hi-IN";
+    recognition.lang = getBCP47(lang);    // use current app language, not hardcoded hi-IN
     recognition.interimResults = false;
+    recognition.continuous = false;
     recognition.maxAlternatives = 1;
+    setVoiceListening(true);
+    setVoiceTooltip("🎤 Listening… speak now");
     recognition.onresult = (event) => {
-      const rawTranscript = event.results[0][0].transcript;
+      // SpeechRecognitionResultList uses .length, not Object.keys
+      let text = "";
+      for (let i = 0; i < event.results.length; i++) text += event.results[i][0].transcript + " ";
+      const rawTranscript = text.trim();
       const { cleaned, blocked } = filterText(rawTranscript);
-      if (blocked) setVoiceTooltip("⚠️ Inappropriate language removed");
       setClothing((prev) => (prev ? prev + " " + cleaned : cleaned));
+      setVoiceTooltip(blocked ? "⚠️ Inappropriate language removed" : "✅ Voice captured");
       setTimeout(() => setVoiceTooltip(""), 3000);
     };
-    recognition.onerror = () => {
-      setVoiceTooltip("Could not capture voice. Please try again.");
+    recognition.onerror = (e) => {
+      const msg = e.error === "not-allowed" ? "Microphone access denied" : "Could not capture voice. Please try again.";
+      setVoiceTooltip(msg);
       setTimeout(() => setVoiceTooltip(""), 3000);
+      setVoiceListening(false);
+    };
+    recognition.onend = () => {
+      setVoiceListening(false);
     };
     recognition.start();
   }
@@ -270,7 +294,17 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
   }
 
   function handleMissingVoiceInput() {
-    type AnySR = { lang: string; interimResults: boolean; maxAlternatives: number; onresult: ((e: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => void) | null; onerror: (() => void) | null; start: () => void; };
+    if (missingVoiceListening) return;
+
+    type SRResult = { transcript: string };
+    type SRResultList = { length: number; [k: number]: { [k: number]: SRResult } };
+    type AnySR = {
+      lang: string; interimResults: boolean; continuous: boolean; maxAlternatives: number;
+      onresult: ((e: { results: SRResultList }) => void) | null;
+      onerror: ((e: { error: string }) => void) | null;
+      onend: (() => void) | null;
+      start: () => void;
+    };
     type WW = Window & { SpeechRecognition?: new () => AnySR; webkitSpeechRecognition?: new () => AnySR };
     const w = window as WW;
     const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
@@ -280,19 +314,29 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
       return;
     }
     const recognition = new Ctor();
-    recognition.lang = "hi-IN";
+    recognition.lang = getBCP47(lang);
     recognition.interimResults = false;
+    recognition.continuous = false;
     recognition.maxAlternatives = 1;
+    setMissingVoiceListening(true);
+    setMissingVoiceTooltip("🎤 Listening… speak now");
     recognition.onresult = (event) => {
-      const rawTranscript = event.results[0][0].transcript;
+      let text = "";
+      for (let i = 0; i < event.results.length; i++) text += event.results[i][0].transcript + " ";
+      const rawTranscript = text.trim();
       const { cleaned, blocked } = filterText(rawTranscript);
-      if (blocked) setMissingVoiceTooltip("⚠️ Inappropriate language removed");
       setMissingClothing((prev) => (prev ? prev + " " + cleaned : cleaned));
+      setMissingVoiceTooltip(blocked ? "⚠️ Inappropriate language removed" : "✅ Voice captured");
       setTimeout(() => setMissingVoiceTooltip(""), 3000);
     };
-    recognition.onerror = () => {
-      setMissingVoiceTooltip("Could not capture voice. Please try again.");
+    recognition.onerror = (e) => {
+      const msg = e.error === "not-allowed" ? "Microphone access denied" : "Could not capture voice. Please try again.";
+      setMissingVoiceTooltip(msg);
       setTimeout(() => setMissingVoiceTooltip(""), 3000);
+      setMissingVoiceListening(false);
+    };
+    recognition.onend = () => {
+      setMissingVoiceListening(false);
     };
     recognition.start();
   }
@@ -504,9 +548,9 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#5b21b6" }}>Voice input available</div>
                 <div style={{ fontSize: 11, color: "#7c3aed" }}>Use the 🎤 button next to Clothing Description to speak the description</div>
               </div>
-              <button type="button" onClick={handleMissingVoiceInput}
-                style={{ padding: "8px 14px", background: "#7c3aed", color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
-                🎤 Speak
+              <button type="button" onClick={handleMissingVoiceInput} disabled={missingVoiceListening}
+                style={{ padding: "8px 14px", background: missingVoiceListening ? "#5b21b6" : "#7c3aed", color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: missingVoiceListening ? "not-allowed" : "pointer", flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                {missingVoiceListening ? <><span className="spinner" style={{ width: 14, height: 14, borderColor: "rgba(255,255,255,.3)", borderTopColor: "white" }} />Listening…</> : "🎤 Speak"}
               </button>
             </div>
 
@@ -595,7 +639,10 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
                   {errors.missingClothing && <div style={errStyle}>{errors.missingClothing}</div>}
                 </div>
                 <div style={{ position: "relative" }}>
-                  <button type="button" onClick={handleMissingVoiceInput} title="Voice input" style={{ padding: "8px 10px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>🎤</button>
+                  <button type="button" onClick={handleMissingVoiceInput} disabled={missingVoiceListening} title="Voice input"
+                    style={{ padding: "8px 10px", background: missingVoiceListening ? "#ede9fe" : "#f3f4f6", border: `1px solid ${missingVoiceListening ? "#7c3aed" : "#d1d5db"}`, borderRadius: 6, cursor: missingVoiceListening ? "not-allowed" : "pointer", fontSize: 18, lineHeight: 1 }}>
+                    {missingVoiceListening ? "⏳" : "🎤"}
+                  </button>
                   {missingVoiceTooltip && (
                     <div style={{ position: "absolute", right: 0, top: "110%", background: "#1c1917", color: "white", fontSize: 11, padding: "5px 8px", borderRadius: 5, whiteSpace: "nowrap", zIndex: 10 }}>
                       {missingVoiceTooltip}
@@ -642,9 +689,9 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#5b21b6" }}>Voice input available</div>
                 <div style={{ fontSize: 11, color: "#7c3aed" }}>Tap Speak to dictate clothing description by voice</div>
               </div>
-              <button type="button" onClick={handleVoiceInput}
-                style={{ padding: "8px 14px", background: "#7c3aed", color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
-                🎤 Speak
+              <button type="button" onClick={handleVoiceInput} disabled={voiceListening}
+                style={{ padding: "8px 14px", background: voiceListening ? "#5b21b6" : "#7c3aed", color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: voiceListening ? "not-allowed" : "pointer", flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                {voiceListening ? <><span className="spinner" style={{ width: 14, height: 14, borderColor: "rgba(255,255,255,.3)", borderTopColor: "white" }} />Listening…</> : "🎤 Speak"}
               </button>
             </div>
 
@@ -752,7 +799,10 @@ export default function VolunteerQuickForm({ mode, centerId, onSubmitted }: Volu
                   {errors.clothing && <div style={errStyle}>{errors.clothing}</div>}
                 </div>
                 <div style={{ position: "relative" }}>
-                  <button type="button" onClick={handleVoiceInput} title="Voice input" style={{ padding: "8px 10px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>🎤</button>
+                  <button type="button" onClick={handleVoiceInput} disabled={voiceListening} title="Voice input"
+                    style={{ padding: "8px 10px", background: voiceListening ? "#ede9fe" : "#f3f4f6", border: `1px solid ${voiceListening ? "#7c3aed" : "#d1d5db"}`, borderRadius: 6, cursor: voiceListening ? "not-allowed" : "pointer", fontSize: 18, lineHeight: 1 }}>
+                    {voiceListening ? "⏳" : "🎤"}
+                  </button>
                   {voiceTooltip && (
                     <div style={{ position: "absolute", right: 0, top: "110%", background: "#1c1917", color: "white", fontSize: 11, padding: "5px 8px", borderRadius: 5, whiteSpace: "nowrap", zIndex: 10 }}>{voiceTooltip}</div>
                   )}

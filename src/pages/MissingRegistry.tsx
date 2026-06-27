@@ -434,6 +434,24 @@ export default function MissingRegistry() {
         </div>
       )}
 
+      {/* CTAs — moved to top so they're immediately visible */}
+      <div style={{ display: "flex", gap: 8, padding: "10px 16px", background: "white", borderBottom: "1px solid #e7e5e4" }}>
+        <button
+          onClick={() => navigate("/", { state: { initialScreen: "report-missing", initialFlow: "report-missing" } })}
+          className="btn btn-primary flex-1"
+          style={{ fontSize: 13, padding: "10px 8px" }}
+        >
+          🔍 Report Missing
+        </button>
+        <button
+          onClick={() => setShowFoundSomeone(true)}
+          className="btn btn-ghost flex-1"
+          style={{ borderColor: "#16a34a", color: "#15803d", fontSize: 13, padding: "10px 8px" }}
+        >
+          🙋 I Found Someone
+        </button>
+      </div>
+
       {/* Tabs */}
       <div className="tab-nav">
         <button onClick={() => setTab("missing")} className={`tab-btn${tab === "missing" ? " active" : ""}`}>
@@ -513,22 +531,6 @@ export default function MissingRegistry() {
           </>
         )}
 
-        {/* CTA */}
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <button
-            onClick={() => navigate("/", { state: { initialScreen: "report-missing", initialFlow: "report-missing" } })}
-            className="btn btn-primary flex-1"
-          >
-            🔍 Report Missing
-          </button>
-          <button
-            onClick={() => setShowFoundSomeone(true)}
-            className="btn btn-ghost flex-1"
-            style={{ borderColor: "#16a34a", color: "#15803d" }}
-          >
-            🙋 I Found Someone
-          </button>
-        </div>
       </div>
 
       {/* "I Found Someone" slide-up panel */}

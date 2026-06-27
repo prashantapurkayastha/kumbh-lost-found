@@ -109,9 +109,11 @@ function VoiceFirstScreen({
   const [done, setDone] = useState(false);
   const recogRef = useRef<unknown>(null);
 
+  type SRResult = { transcript: string };
+  type SRResultList = { length: number; [k: number]: { [k: number]: SRResult } };
   type AnySR = {
     lang: string; interimResults: boolean; maxAlternatives: number; continuous: boolean;
-    onresult: ((e: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => void) | null;
+    onresult: ((e: { results: SRResultList }) => void) | null;
     onerror: (() => void) | null; onend: (() => void) | null;
     start: () => void; stop: () => void;
   };
@@ -133,7 +135,9 @@ function VoiceFirstScreen({
     sr.continuous = true;
     sr.onresult = (e) => {
       let text = "";
-      for (let i = 0; i < Object.keys(e.results).length; i++) text += e.results[i][0].transcript + " ";
+      // SpeechRecognitionResultList is array-like, not a plain object —
+      // must use e.results.length, not Object.keys(e.results).length
+      for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript + " ";
       setTranscript(text.trim());
     };
     sr.onerror = () => { setError("Could not capture audio. Please try again."); setListening(false); };

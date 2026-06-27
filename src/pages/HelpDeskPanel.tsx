@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import MapView, { type MapMarker, type CctvPoint } from "../components/MapView";
-import ChatAgent from "../components/ChatAgent";
+import VolunteerQuickForm from "../components/VolunteerQuickForm";
 import { getUserLocation, type UserLocation } from "../services/location";
 import { sendSMS } from "../services/sms";
 import { notifyBackend } from "../core/backends/notify";
@@ -10,9 +10,10 @@ import { flagSuspicionSync, getSyncStatus, getLastSyncTime } from "../core/backe
 import { useOnline } from "../hooks/useOnline";
 import { computeHotspots } from "../services/hotspots";
 import { haversineKm } from "../core/backends/geo";
-import type { AgentResult } from "../core/agent";
 import type { Notification, PoliceStation } from "../types";
 import cctvRaw from "../data/cctv.json";
+// Note: AgentResult import removed — register-found tab now uses VolunteerQuickForm (form-based)
+
 
 // ────────────────────────��────────────────────────────────────────────────────
 // Help Desk Panel
@@ -89,7 +90,6 @@ export default function HelpDeskPanel() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [contactNumber, setContactNumber] = useState("");
   const [refNumber, setRefNumber] = useState<string | null>(null);
-  const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const notifIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -121,21 +121,18 @@ export default function HelpDeskPanel() {
     return () => { if (notifIntervalRef.current) clearInterval(notifIntervalRef.current); };
   }, []);
 
-  async function handleAgentResult(result: AgentResult) {
-    setAgentResult(result);
-    for (const tc of result.toolCallsMade) {
-      const out = tc.output as Record<string, unknown>;
-      if ((tc.name === "register_missing_person" || tc.name === "register_found_person") && (out.referenceId ?? out.recordId)) {
-        const ref = (out.referenceId ?? out.recordId) as string;
-        setRefNumber(ref);
-        if (contactNumber) {
-          await sendSMS({
-            to: contactNumber,
-            message: `Kumbh Mela: ${tc.name === "register_found_person" ? "You have been registered as" : "Missing report"} ${ref}. ${registry.getCenterById(deskId)?.name ?? deskId}. Show this to any help desk.`,
-            type: "case_registered",
-          });
-        }
-      }
+  async function handleFormSubmitted({ refId, type }: { refId: string; type: string }) {
+    setRefNumber(refId);
+    if (contactNumber) {
+      const centerName = registry.getCenterById(deskId)?.name ?? deskId;
+      const isFound = type === "found";
+      await sendSMS({
+        to: contactNumber,
+        message: isFound
+          ? `Kumbh Mela 2027: You have been registered as ${refId} at ${centerName}. Show this ID at any help desk.`
+          : `Kumbh Mela 2027: Missing report ${refId} registered at ${centerName}. You will receive an SMS when a match is found.`,
+        type: "case_registered",
+      });
     }
   }
 
@@ -347,48 +344,66 @@ export default function HelpDeskPanel() {
 
       {/* REGISTER — Help a person/family at the desk */}
       {tab === "register-found" && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
           {/* Scenario picker */}
-          <div style={{ padding: "12px 16px", background: "white", borderBottom: "1px solid #e7e5e4", display: "flex", gap: 8 }}>
+          <div style={{ padding: "10px 16px", background: "white", borderBottom: "1px solid #e7e5e4", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <button
-              onClick={() => { setScenario("family-reports"); setAgentResult(null); setRefNumber(null); }}
+              onClick={() => { setScenario("family-reports"); setRefNumber(null); }}
               className={`btn btn-sm ${scenario === "family-reports" ? "btn-primary" : "btn-ghost"}`}
             >
-              👨‍👩‍👧 Family reporting
+              👨‍👩‍👧 Family at desk
             </button>
             <button
-              onClick={() => { setScenario("person-self-reports"); setAgentResult(null); setRefNumber(null); }}
+              onClick={() => { setScenario("person-self-reports"); setRefNumber(null); }}
               className={`btn btn-sm ${scenario === "person-self-reports" ? "btn-primary" : "btn-ghost"}`}
             >
-              🙋 Person is here
+              🙋 Person at desk
             </button>
-          </div>
 
-          {/* Contact + status bar */}
-          <div style={{ padding: "10px 16px", background: "#fafaf9", borderBottom: "1px solid #e7e5e4", display: "flex", gap: 8 }}>
+            {/* Contact number + ref badge inline */}
             <input
               type="tel"
               value={contactNumber}
               onChange={(e) => setContactNumber(e.target.value)}
-              placeholder="Contact number (for SMS)"
+              placeholder="Contact no. for SMS"
               className="input"
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 140, maxWidth: 220 }}
             />
-            {refNumber && <span className="badge badge-green" style={{ flexShrink: 0 }}>✅ {refNumber}</span>}
+            {refNumber && (
+              <span className="badge badge-green" style={{ flexShrink: 0, fontSize: 13 }}>
+                ✅ {refNumber}
+              </span>
+            )}
           </div>
 
-          <ChatAgent
-            langCode="en"
-            key={`${deskId}-${scenario}`}
-            initialPrompt={
-              scenario === "family-reports"
-                ? `I am a help desk operator at ${registry.getCenterById(deskId)?.name ?? deskId}. A family has arrived to report a missing family member. Please help me take their report and search the registry.`
-                : `I am a help desk operator at ${registry.getCenterById(deskId)?.name ?? deskId}. A person has arrived at our desk who is separated from their family. Please help me register them (use register_found_person with centerId="${deskId}") and search for their family.`
-            }
-            onResult={handleAgentResult}
-            placeholder={scenario === "family-reports" ? "Family member details…" : "Describe the person at your desk…"}
-            showVoice={true}
-          />
+          {/* Context banner */}
+          <div style={{
+            padding: "8px 16px",
+            background: scenario === "family-reports" ? "#f0f9ff" : "#fff8f4",
+            borderBottom: "1px solid #e7e5e4",
+            fontSize: 12,
+            color: scenario === "family-reports" ? "#0369a1" : "#92400e",
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ fontSize: 16 }}>{scenario === "family-reports" ? "ℹ️" : "🏥"}</span>
+            {scenario === "family-reports"
+              ? "Family has arrived to report a missing person. Use this form to take their report and register it in the system."
+              : "A separated person is physically at this desk. Register them so their family can be notified and a reunion can be arranged."}
+            <span style={{ marginLeft: "auto", fontWeight: 700, color: "#1d4ed8" }}>
+              Desk: {registry.getCenterById(deskId)?.name ?? deskId}
+            </span>
+          </div>
+
+          {/* Form — reuse VolunteerQuickForm with the right mode */}
+          <div style={{ flex: 1, overflow: "auto" }}>
+            <VolunteerQuickForm
+              key={`${deskId}-${scenario}`}
+              mode={scenario === "family-reports" ? "help-family" : "help-person"}
+              centerId={deskId}
+              onSubmitted={handleFormSubmitted}
+            />
+          </div>
         </div>
       )}
 
